@@ -1,34 +1,29 @@
+#ifdef USES_P157
 /*##########################################################################################
   ############################### Plugin 157: DS3231 RTC ###################################
   ##########################################################################################
   Needs Petre Rodan's ds3231 library to work!
         https://github.com/rodan/ds3231
-
   Features :
 	- Reads date and temperature from DS3231
 	- grab&replace essential ESPEasy time functions (not nice from a plugin, but works...
 	  but how long?)
 	- use ntp at startup then disable immediately (2 time source=nasty problems)
 	- can be set the time with "setdate" command
-
   List of commands :
 	- setdate,year,month,day,hour,minute,second
         - setclock,0/1/2     (0=no clock source, 1=ntp enabled, 2=rtc enabled)
         - getalarm           Shows next alarm date
-
   Command Examples :
 	-  /control?cmd=setdate,2018,10,29,14,58,00     Set date to: 2018.10.29 14:58:00
         -  /control?cmd=setclock,1                      Enable NTP-Disable RTC
         -  /control?cmd=setclock,2                      Enable RTC-Disable NTP
-
   ------------------------------------------------------------------------------------------
 	Copyleft Nagy Sándor 2018 - https://bitekmindenhol.blog.hu/
   ------------------------------------------------------------------------------------------
 */
 
-#ifdef PLUGIN_BUILD_TESTING
-#include <time.h> // time() ctime()
-#include <sys/time.h> // struct timeval
+//#include <TimeLib.h>
 #include "ds3231.h"
 // https://github.com/rodan/ds3231
 
@@ -147,7 +142,7 @@ boolean Plugin_157(byte function, struct EventStruct *event, String& string)
           Plugin_157_init = true;
           success = true;
         } else {
-          Plugin_157_init = false;
+          Plugin_157_init = true;//false;
           success = false;
           ilogs += F(" DS3231 init failed.");
           Settings.UseNTP = Plugin_157_ntpvar;
@@ -348,13 +343,13 @@ unsigned long getRtcTime() // based on core getNtpTime()
    logs += F(":");
    logs += t.sec;
    addLog(LOG_LEVEL_INFO, logs);
-   timeStruct tm2;
-   tm2.Year = t.year - 1970;
-   tm2.Month = t.mon;
-   tm2.Day = t.mday;
-   tm2.Hour = t.hour;
-   tm2.Minute = t.min;
-   tm2.Second = t.sec;
+   struct tm tm2; //timeStruct tm2;
+   tm2.tm_year = t.year - 1970;
+   tm2.tm_mon = t.mon;
+   tm2.tm_mday = t.mday;
+   tm2.tm_hour = t.hour;
+   tm2.tm_min = t.min;
+   tm2.tm_sec = t.sec;
    return makeTime(tm2); // return unix time
   }
 }
@@ -365,10 +360,10 @@ void rtccheckTime()
     return;
   }
   rtcnow();
-  if (tm.Minute != PrevMinutes)
+  if (tm.tm_min != PrevMinutes)
   {
     PluginCall(PLUGIN_CLOCK_IN, 0, dummyString);
-    PrevMinutes = tm.Minute;
+    PrevMinutes = tm.tm_min;
     if (Settings.UseRules)
     {
       String event;
@@ -391,13 +386,13 @@ void rtccheckTime()
 void plugin_157_setnextalarm(void) // setup next alarm
 {
   unsigned long timenow = getUnixTime();  // based on current unix time
-  struct timeStruct tma;
+  struct tm tma;
   breakTime((timenow + Plugin_157_interval), tma);  // and interval
   uint8_t flags[5] = { 0, 0, 0, 0, 0 };
   String logs = F("RTC  : Next alarm time set to: ");
-  logs += String(tma.Hour) + F(":") + String(tma.Minute) + F(":") + String(tma.Second);
+  logs += String(tma.tm_hour) + F(":") + String(tma.tm_min) + F(":") + String(tma.tm_sec);
   addLog(LOG_LEVEL_INFO, logs);
-  DS3231_set_a1(tma.Second, tma.Minute, tma.Hour, tma.Day, flags);
+  DS3231_set_a1(tma.tm_sec, tma.tm_min, tma.tm_hour, tma.tm_mday, flags);
   DS3231_set_creg(DS3231_CONTROL_INTCN | DS3231_CONTROL_A1IE);    // activate Alarm1
 }
 
@@ -417,18 +412,24 @@ void plugin_157_do_ntpsync()
   Plugin_157_ntpinit = false;
   nextSyncTime = 0;
   String logs;
-  unsigned long t = getNtpTime(); // get time from ntp if available
-  if (t != 0) {
-    //t = now();
+  union {
+    unsigned long t;
+    double v;
+  }vt;
+  //unsigned long t;
+  //double& val  = (double&)t;
+  // get time from ntp if available
+  if (getNtpTime(vt.v)) {
+    //t = now(); 
     struct ts t2;
-    breakTime(toLocal(t), tm); // timezone is a major headache...
-    t2.sec = tm.Second;
-    t2.min = tm.Minute;
-    t2.hour = tm.Hour;
-    t2.mday = tm.Day;
-    t2.wday = tm.Wday;
-    t2.mon = tm.Month;
-    t2.year = (tm.Year + 1970);
+    breakTime(toLocal(vt.t), tm); // timezone is a major headache...
+    t2.sec = tm.tm_sec;
+    t2.min = tm.tm_min;
+    t2.hour = tm.tm_hour;
+    t2.mday = tm.tm_mday;
+    t2.wday = tm.tm_wday;
+    t2.mon = tm.tm_mon;
+    t2.year = (tm.tm_year + 1970);
     String logs = F("RTC  : Time from NTP: ");
     logs += t2.year;
     logs += F(".");
@@ -465,6 +466,7 @@ unsigned long plugin_157_initialize()
     plugin_157_do_ntpsync();
   }
   DS3231_init(DS3231_CONTROL_INTCN);   // init ds3231, do not use wire.begin it is handled by espeasy
+  delay(10);
   nextSyncTime = 0;
   syncInterval = 1800;
   unsigned long loctime = rtcnow();    // get time from RTC
@@ -472,6 +474,9 @@ unsigned long plugin_157_initialize()
     DS3231_clear_a1f();
     plugin_157_setnextalarm();
   }
+  String logs = F("RTC  : init loctime: ");
+  logs += loctime;
+  addLog(LOG_LEVEL_INFO, logs);
   return loctime;
 }
 #endif

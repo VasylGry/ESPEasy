@@ -575,7 +575,11 @@ boolean usecTimeOutReached(unsigned long timer) {
 
   return passed >= 0;
 }
-
+void setTime(time_t t) {
+  sysTime = (uint32_t)t;  
+  nextSyncTime = (uint32_t)t + syncInterval;
+  prevMillis = millis();
+}
 void setNextTimeInterval(unsigned long& timer, const unsigned long step) {
   timer += step;
   const long passed = timePassedSince(timer);

@@ -710,6 +710,7 @@ To create/register a plugin, you have to :
 	#define USES_P130	// VEML6075
 	#define USES_P131	// SHT3X
 	#define USES_P133	// VL53L0X
+    #define USES_P137	// ILI9341
 	#define USES_P141	// LedStrip
 	#define USES_P142	// RGB-Strip
 	#define USES_P143	// AnyonePresent
@@ -719,6 +720,7 @@ To create/register a plugin, you have to :
 	#define USES_P150	// SDM120C
 	#define USES_P151	// CISA
 	#define USES_P153	// MAX44009
+    #define USES_P157	// DS3132
 	#define USES_P162	// MPL3115A2
 	#define USES_P163	// DS1631
 	#define USES_P165	// SerSwitch

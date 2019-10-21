@@ -44,7 +44,7 @@
   #define PROGMEM __attribute__((section(".progmem.data")))
  #endif
 #else
- #define PROGMEM
+// #define PROGMEM
  #define xpgm_read_byte(addr) (*(const uint8_t *)(addr))
 #endif
 
