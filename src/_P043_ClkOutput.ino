@@ -123,6 +123,45 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
         }
         break;
       }
+    case PLUGIN_WRITE:
+      {
+        String command = parseString(string, 1);
+        if (command == F("setprogram"))
+        {
+          if (event->Par1 == event->TaskIndex+1) // make sure that this instance is the target
+          {
+            float floatValue=0;
+            if (string2float(parseString(string, 4),floatValue))
+            {
+              if (loglevelActiveFor(LOG_LEVEL_INFO))
+              {
+                String log = F("TCLK: Program ");
+                log += event->Par1;
+                log += F(" value ");
+                log += event->Par2;
+                log += F(" set to ");
+                log += floatValue;
+                addLog(LOG_LEVEL_INFO,log);
+              }
+              UserVar[event->BaseVarIndex+event->Par2-1]=floatValue;
+              success = true;
+            } else { // float conversion failed!
+              if (loglevelActiveFor(LOG_LEVEL_ERROR))
+              {
+                String log = F("TCLK: Program ");
+                log += event->Par1;
+                log += F(" value ");
+                log += event->Par2;
+                log += F(" parameter3: ");
+                log += parseString(string, 4);
+                log += F(" not a float value!");
+                addLog(LOG_LEVEL_ERROR,log);
+              }
+            }
+          }
+        }
+        break;
+      }
   }
   return success;
 }
