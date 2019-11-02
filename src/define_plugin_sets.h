@@ -581,13 +581,13 @@ To create/register a plugin, you have to :
 
 
 #ifdef CONTROLLER_SET_STABLE
-    #define USES_C001   // Domoticz HTTP
-    #define USES_C002   // Domoticz MQTT
-    #define USES_C003   // Nodo telnet
-    #define USES_C004   // ThingSpeak
+    // #define USES_C001   // Domoticz HTTP
+    // #define USES_C002   // Domoticz MQTT
+    // #define USES_C003   // Nodo telnet
+    // #define USES_C004   // ThingSpeak
     #define USES_C005   // Home Assistant (openHAB) MQTT
-    #define USES_C006   // PiDome MQTT
-    #define USES_C007   // Emoncms
+    // #define USES_C006   // PiDome MQTT
+    // #define USES_C007   // Emoncms
     #define USES_C008   // Generic HTTP
     #define USES_C009   // FHEM HTTP
     #define USES_C010   // Generic UDP
@@ -653,10 +653,10 @@ To create/register a plugin, you have to :
 
 #ifdef CONTROLLER_SET_TESTING
     #define USES_C011   // Generic HTTP Advanced
-    #define USES_C012   // Blynk HTTP
-    #define USES_C014   // homie 3 & 4dev MQTT
-    #define USES_C015   // Blynk
-    #define USES_C017   // Zabbix
+    // #define USES_C012   // Blynk HTTP
+    // #define USES_C014   // homie 3 & 4dev MQTT
+    // #define USES_C015   // Blynk
+    // #define USES_C017   // Zabbix
 #endif
 
 
@@ -666,28 +666,28 @@ To create/register a plugin, you have to :
 
 // EXPERIMENTAL (playground) #######################
 #ifdef PLUGIN_SET_EXPERIMENTAL
-    #define USES_P046   // VentusW266
-    #define USES_P050   // TCS34725 RGB Color Sensor with IR filter and White LED
-    #define USES_P064   // APDS9960 Gesture
-    #define USES_P077	// CSE7766   Was P134 on Playground
+    // #define USES_P046   // VentusW266
+    // #define USES_P050   // TCS34725 RGB Color Sensor with IR filter and White LED
+    // #define USES_P064   // APDS9960 Gesture
+    // #define USES_P077	// CSE7766   Was P134 on Playground
 
 
     // [copied from Playground as of 6 March 2018]
     // It needs some cleanup as some are ALSO in the main repo,
     // thus they should have been removed from the Playground repo
-    #define USES_P100	// SRF01
-	   #define USES_P101	// NeoClock       (MERGED?)
-	#define USES_P102	// Nodo
+    // #define USES_P100	// SRF01
+	// #define USES_P101	// NeoClock       (MERGED?)
+	// #define USES_P102	// Nodo
 	#define USES_P103	// Event
-	#define USES_P104	// SRF02
+	// #define USES_P104	// SRF02
 	#define USES_P105	// RGBW
-	#define USES_P106	// IRTX
+	// #define USES_P106	// IRTX
 	#define USES_P107	// Email_Demo
 	#define USES_P108	// WOL
 	#define USES_P109	// RESOL_DeltaSol_Pro
-	   #define USES_P110	// P1WifiGateway      (MERGED?)
+	#define USES_P110	// P1WifiGateway      (MERGED?)
 	#define USES_P111	// RF
-	   //#define USES_P111	// SenseAir     (MERGED?)
+	//#define USES_P111	// SenseAir     (MERGED?)
 	#define USES_P112	// Power
 	//#define USES_P112	// RFTX
 	#define USES_P113	// SI1145
@@ -697,7 +697,7 @@ To create/register a plugin, you have to :
 	#define USES_P117	// LW12FC
 	//#define USES_P117	// Neopixels
 	//#define USES_P117	// Nextion
-	#define USES_P118	// CCS811
+	// #define USES_P118	// CCS811
 	#define USES_P119	// BME680
 	#define USES_P120	// Thermocouple
 	#define USES_P121	// Candle
@@ -707,9 +707,9 @@ To create/register a plugin, you have to :
 	//#define USES_P124	// Ventus_W266_RFM69
 	#define USES_P125	// ArduCAM
 	#define USES_P127	// Teleinfo
-	#define USES_P130	// VEML6075
-	#define USES_P131	// SHT3X
-	#define USES_P133	// VL53L0X
+	// #define USES_P130	// VEML6075
+	// #define USES_P131	// SHT3X
+	// #define USES_P133	// VL53L0X
     #define USES_P137	// ILI9341
 	#define USES_P141	// LedStrip
 	#define USES_P142	// RGB-Strip

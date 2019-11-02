@@ -54,6 +54,9 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
         options[1] = F("Off");
         options[2] = F("On");
 
+        addHtml("Select program");
+         addFormNumericBox(F("Program"), F("pconf_prog"), PCONFIG(0), 1, 10);
+
         for (byte x = 0; x < PLUGIN_043_MAX_SETTINGS; x++)
         {
         	addFormTextBox(String(F("Day,Time ")) + (x + 1), String(F("p043_clock")) + (x), timeLong2String(ExtraTaskSettings.TaskDevicePluginConfigLong[x]), 32);
@@ -75,6 +78,7 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
 
     case PLUGIN_WEBFORM_SAVE:
       {
+        PCONFIG(0) = getFormItemInt(F("pconf_prog"));
         for (byte x = 0; x < PLUGIN_043_MAX_SETTINGS; x++)
         {
           String argc = F("p043_clock");
@@ -128,7 +132,9 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
         String command = parseString(string, 1);
         if (command == F("setprogram"))
         {
-          if (event->Par1 == event->TaskIndex+1) // make sure that this instance is the target
+          String taskName = parseString(string, 2);
+          int8_t taskIndex = getTaskIndexByName(taskName);
+          if (taskIndex != -1)
           {
             float floatValue=0;
             if (string2float(parseString(string, 4),floatValue))
@@ -136,14 +142,25 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
               if (loglevelActiveFor(LOG_LEVEL_INFO))
               {
                 String log = F("TCLK: Program ");
-                log += event->Par1;
-                log += F(" value ");
-                log += event->Par2;
-                log += F(" set to ");
+                log += parseString(string, 2);
+                log += F(" cmd[2] ");
+                log += parseString(string, 3);
+                log += F(" value[4] = ");
                 log += floatValue;
+/*
+                for (byte x = 0; x < PLUGIN_043_MAX_SETTINGS; x++)
+                {
+                  log += F("[");
+        	        log += timeLong2String(ExtraTaskSettings.TaskDevicePluginConfigLong[x]);
+                  log += F("=");
+                  log += ExtraTaskSettings.TaskDevicePluginConfig[x];
+                  log += F("]");
+                }
+*/                
                 addLog(LOG_LEVEL_INFO,log);
               }
-              UserVar[event->BaseVarIndex+event->Par2-1]=floatValue;
+              //UserVar[event->BaseVarIndex+event->Par2-1]=floatValue;
+              read_program();
               success = true;
             } else { // float conversion failed!
               if (loglevelActiveFor(LOG_LEVEL_ERROR))
@@ -162,7 +179,49 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
         }
         break;
       }
-  }
+  } // case
   return success;
+} // function
+
+// read progs.json
+bool read_program()
+{
+  // load form data from flash
+
+  int size   = 0;
+  bool ret = false;
+  DynamicJsonDocument doc(8192);
+  String log = F("TCLK : Read progs: ");
+  fs::File file = tryOpenFile("progs.json", "r");
+
+  if (file)
+  {
+    size = file.size();
+    log += F(" size: ");
+    log += size;
+    log += F(" content: ");
+/*
+    while (file.available())
+    {
+      String c((char)file.read());
+      log += c;
+    }
+*/
+    DeserializationError error = deserializeJson(doc, file);
+    if (error){
+      log += (F("Failed to JSON"));
+    }else{
+      JsonArray arr = doc.as<JsonArray>();
+      JsonObject obj = arr[0];
+      log += obj["id"].as<int>();
+      log += obj["name"].as<String>();
+    }
+    file.close();
+    ret = true;
+  }else{
+    log += F(" can't open file ! ");
+  }
+  addLog(LOG_LEVEL_INFO, log);
+  return ret;
 }
 #endif // USES_P043
