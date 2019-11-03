@@ -147,20 +147,12 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
                 log += parseString(string, 3);
                 log += F(" value[4] = ");
                 log += floatValue;
-/*
-                for (byte x = 0; x < PLUGIN_043_MAX_SETTINGS; x++)
-                {
-                  log += F("[");
-        	        log += timeLong2String(ExtraTaskSettings.TaskDevicePluginConfigLong[x]);
-                  log += F("=");
-                  log += ExtraTaskSettings.TaskDevicePluginConfig[x];
-                  log += F("]");
-                }
-*/                
                 addLog(LOG_LEVEL_INFO,log);
+                command = F("\nOk\nProgram updated!");
+                SendStatus(event->Source, command);
               }
               //UserVar[event->BaseVarIndex+event->Par2-1]=floatValue;
-              read_program();
+              read_program((int)floatValue);
               success = true;
             } else { // float conversion failed!
               if (loglevelActiveFor(LOG_LEVEL_ERROR))
@@ -173,6 +165,8 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
                 log += parseString(string, 4);
                 log += F(" not a float value!");
                 addLog(LOG_LEVEL_ERROR,log);
+                command = F("\nFail\nBad program number!");
+                SendStatus(event->Source, command);
               }
             }
           }
@@ -184,7 +178,7 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
 } // function
 
 // read progs.json
-bool read_program()
+bool read_program(int prog_no)
 {
   // load form data from flash
 
@@ -212,9 +206,11 @@ bool read_program()
       log += (F("Failed to JSON"));
     }else{
       JsonArray arr = doc.as<JsonArray>();
-      JsonObject obj = arr[0];
+      JsonObject obj = arr[prog_no];
       log += obj["id"].as<int>();
       log += obj["name"].as<String>();
+      log += obj["pump"][3].as<String>();
+      log += obj["fan"][0].as<int>();
     }
     file.close();
     ret = true;
