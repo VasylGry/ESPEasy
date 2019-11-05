@@ -143,16 +143,19 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
               {
                 String log = F("TCLK: Program ");
                 log += parseString(string, 2);
-                log += F(" cmd[2] ");
-                log += parseString(string, 3);
+                log += F(" TaskIndex ");
+                log += event->TaskIndex;
                 log += F(" value[4] = ");
                 log += floatValue;
                 addLog(LOG_LEVEL_INFO,log);
                 command = F("\nOk\nProgram updated!");
                 SendStatus(event->Source, command);
               }
-              //UserVar[event->BaseVarIndex+event->Par2-1]=floatValue;
-              read_program((int)floatValue);
+              if((floatValue < 1) || (floatValue > 10)){
+                command = F("\nFail\nBad program number!");
+                SendStatus(event->Source, command);
+              }else
+                readProgram((int)floatValue - 1, event->TaskIndex);
               success = true;
             } else { // float conversion failed!
               if (loglevelActiveFor(LOG_LEVEL_ERROR))
@@ -178,7 +181,7 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
 } // function
 
 // read progs.json
-bool read_program(int prog_no)
+bool readProgram(int prog_no, byte taskIndex)
 {
   // load form data from flash
 
@@ -203,14 +206,52 @@ bool read_program(int prog_no)
 */
     DeserializationError error = deserializeJson(doc, file);
     if (error){
-      log += (F("Failed to JSON"));
+      log += (F("Failed to deserialize JSON"));
     }else{
       JsonArray arr = doc.as<JsonArray>();
       JsonObject obj = arr[prog_no];
+      log += " Program = ";
       log += obj["id"].as<int>();
+      log += " Name=";
       log += obj["name"].as<String>();
-      log += obj["pump"][3].as<String>();
-      log += obj["fan"][0].as<int>();
+      LoadTaskSettings(taskIndex);
+      Settings.TaskDevicePluginConfig[taskIndex][0] = prog_no + 1;
+      for (byte x = 0; x < PLUGIN_043_MAX_SETTINGS; x++)
+      {
+        String param = "All," + obj["pump"][x].as<String>();
+        ExtraTaskSettings.TaskDevicePluginConfigLong[x] = string2TimeLong(param);
+        log += " pump";
+        log += x;
+        log += "=";
+        log += param;
+        log += ExtraTaskSettings.TaskDevicePluginConfig[x];
+//        ExtraTaskSettings.TaskDevicePluginConfig[x] = plugin2.toInt();
+      }
+      SaveTaskSettings(taskIndex);
+      for(int i=0;i<8;i++){
+        log += " pump";
+        log += i;
+        log += "=";
+        log += obj["pump"][i].as<String>();
+      }
+      for(int i=0;i<2;i++){
+        log += " light";
+        log += i;
+        log += " = ";
+        log += obj["light"][i].as<String>();
+      }
+      for(int i=0;i<2;i++){
+        log += " fan";
+        log += i;
+        log += "=";
+        log += obj["fan"][i].as<int>();
+      }
+      for(int i=0;i<2;i++){
+        log += " heat";
+        log += i;
+        log += "=";
+        log += obj["heat"][i].as<int>();
+      }
     }
     file.close();
     ret = true;
