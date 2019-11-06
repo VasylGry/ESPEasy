@@ -54,7 +54,6 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
         options[1] = F("Off");
         options[2] = F("On");
 
-        addHtml("Select program");
          addFormNumericBox(F("Program"), F("pconf_prog"), PCONFIG(0), 1, 10);
 
         for (byte x = 0; x < PLUGIN_043_MAX_SETTINGS; x++)
@@ -214,44 +213,69 @@ bool readProgram(int prog_no, byte taskIndex)
       log += obj["id"].as<int>();
       log += " Name=";
       log += obj["name"].as<String>();
+// pump device
       LoadTaskSettings(taskIndex);
       Settings.TaskDevicePluginConfig[taskIndex][0] = prog_no + 1;
       for (byte x = 0; x < PLUGIN_043_MAX_SETTINGS; x++)
       {
         String param = "All," + obj["pump"][x].as<String>();
         ExtraTaskSettings.TaskDevicePluginConfigLong[x] = string2TimeLong(param);
-        log += " pump";
-        log += x;
-        log += "=";
-        log += param;
-        log += ExtraTaskSettings.TaskDevicePluginConfig[x];
-//        ExtraTaskSettings.TaskDevicePluginConfig[x] = plugin2.toInt();
+        if(param == "All,00:00")
+          ExtraTaskSettings.TaskDevicePluginConfig[x] = 0;
+        else
+          ExtraTaskSettings.TaskDevicePluginConfig[x] = 2;
       }
       SaveTaskSettings(taskIndex);
-      for(int i=0;i<8;i++){
-        log += " pump";
-        log += i;
-        log += "=";
-        log += obj["pump"][i].as<String>();
+// light device
+      int8_t taskNext = getTaskIndexByName("light");
+      log += " lID=";
+      log += taskNext;
+      LoadTaskSettings(taskNext);
+      Settings.TaskDevicePluginConfig[taskNext][0] = prog_no + 1;
+      for(int x=0;x<2;x++){
+        String param = "All," + obj["light"][x].as<String>();
+        ExtraTaskSettings.TaskDevicePluginConfigLong[x] = string2TimeLong(param);
+        if(x == 0)
+          ExtraTaskSettings.TaskDevicePluginConfig[x] = 2;
+        else
+          ExtraTaskSettings.TaskDevicePluginConfig[x] = 1;
       }
-      for(int i=0;i<2;i++){
-        log += " light";
-        log += i;
-        log += " = ";
-        log += obj["light"][i].as<String>();
-      }
-      for(int i=0;i<2;i++){
-        log += " fan";
-        log += i;
-        log += "=";
-        log += obj["fan"][i].as<int>();
-      }
-      for(int i=0;i<2;i++){
-        log += " heat";
-        log += i;
-        log += "=";
-        log += obj["heat"][i].as<int>();
-      }
+      SaveTaskSettings(taskNext);
+      delay(0);
+ // fan device      
+      taskNext = getTaskIndexByName("fan");
+      LoadTaskSettings(taskNext);
+      float val = obj["fan"][0].as<float>();
+      log += " fID=";
+      log += taskNext;
+      log += " f0>";
+      log += val;
+      log += " f0<";
+      log += Settings.TaskDevicePluginConfigFloat[taskNext][0];
+      Settings.TaskDevicePluginConfigFloat[taskNext][0] =  val;
+      log += " f0=";
+      log += Settings.TaskDevicePluginConfigFloat[taskNext][0];
+      val = obj["fan"][1].as<float>();
+      Settings.TaskDevicePluginConfigFloat[taskNext][1] =  obj["fan"][1].as<float>();
+      SaveTaskSettings(taskNext);
+// heat device
+      taskNext = getTaskIndexByName("heat");
+      LoadTaskSettings(taskNext); 
+      val = obj["heat"][0].as<float>();
+      log += " hID=";
+      log += taskNext;
+      log += " h0>";
+      log += val;
+      log += " h0<";
+      log += Settings.TaskDevicePluginConfigFloat[taskNext][0];
+      Settings.TaskDevicePluginConfigFloat[taskNext][0] =  val;
+      log += " h0=";
+      log += Settings.TaskDevicePluginConfigFloat[taskNext][0];
+      val = obj["heat"][1].as<float>();
+      Settings.TaskDevicePluginConfigFloat[taskNext][1] =  obj["heat"][1].as<float>();
+      SaveTaskSettings(taskNext);
+      log += " heat_param";
+      SaveSettings();
     }
     file.close();
     ret = true;
