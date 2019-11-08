@@ -32,7 +32,7 @@ TaskDevicePluginConfigLong settings:
 
 #define PLUGIN_137
 #define PLUGIN_ID_137         137
-#define PLUGIN_NAME_137       "ILI9341 LCD + PCF8574"
+#define PLUGIN_NAME_137       "ILI9341 LCD"
 #define PLUGIN_VALUENAME1_137 "State"
 #define PLUGIN_137_PCF_ADDR   39
 #define PLUGIN_137_LCD_DC     0
@@ -46,6 +46,13 @@ TaskDevicePluginConfigLong settings:
 #define PLUGIN_137_LONGPRESS_LOW 1
 #define PLUGIN_137_LONGPRESS_HIGH 2
 #define PLUGIN_137_LONGPRESS_BOTH 3
+
+#include <Adafruit_ILI9341.h>
+#include <Adafruit_GFX.h>
+#include "ds3231.h"
+
+int testCount, curX, curY;
+Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -124,55 +131,23 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 
     case PLUGIN_INIT:
       {
-        //apply INIT only if PIN is in range. Do not start INIT if pin not set in the device page.
-        if (CONFIG_PORT >= 0)
-        {
-          portStatusStruct newStatus;
-          const uint32_t key = createKey(PLUGIN_ID_137,CONFIG_PORT);
-          //Read current status or create empty if it does not exist
-          newStatus = globalMapPortStatus[key];
-
-          // read and store current state to prevent switching at boot time
-          // "state" could be -1, 0 or 1
-          newStatus.state = Plugin_137_Read(CONFIG_PORT);
-          newStatus.output = newStatus.state;
-          (newStatus.state == -1) ? newStatus.mode = PIN_MODE_OFFLINE : newStatus.mode = PIN_MODE_INPUT; 
-          newStatus.task++; // add this GPIO/port as a task
-
-          // @giig1967g-20181022: set initial UserVar of the switch
-          if (newStatus.state != -1 && Settings.TaskDevicePin1Inversed[event->TaskIndex]) {
-            UserVar[event->BaseVarIndex] = !newStatus.state;
-          } else {
-            UserVar[event->BaseVarIndex] = newStatus.state;
-          }
-
-          savePortStatus(key,newStatus);
-
-        }
+        tft.begin();
+        tft.fillScreen(ILI9341_BLACK);
         success = true;
         break;
       }
     case PLUGIN_TEN_PER_SECOND:
       {
-        const int8_t state = Plugin_137_Read(CONFIG_PORT);
-        portStatusStruct currentStatus;
-        const uint32_t key = createKey(PLUGIN_ID_137,CONFIG_PORT);
-        //WARNING operator [],creates an entry in map if key doesn't exist:
-        currentStatus = globalMapPortStatus[key];
-       //set UserVar and switchState = -1 and send EVENT to notify user
-        UserVar[event->BaseVarIndex] = state;
-        //switchstate[event->TaskIndex] = state;
-        currentStatus.state = state;
-        currentStatus.mode = PIN_MODE_OFFLINE;
-        if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-          String log = F("PCF  : Port=");
-          log += CONFIG_PORT;
-          log += F(" is offline (EVENT= -1)");
-          addLog(LOG_LEVEL_INFO, log);
+        testCount++;
+        tft.drawRect(10 + curX, 300, 100 + curX, 350, ILI9341_BLACK);
+        if(testCount > 20){
+          Plugin_137_TestText(testCount);
+          testCount = 0;
+          curX = 0;
+        }else{
+          curX += 5;
+          tft.drawRect(10 + curX, 300, 40 + curX, 320, ILI9341_BLUE);
         }
-        sendData(event);
-        savePortStatus(key,currentStatus);
-       
         success = true;
         break;
       }
@@ -189,73 +164,61 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 } // function
 
 //********************************************************************************
-// PCF8574 read
+// Test FastLines
 //********************************************************************************
-//@giig1967g-20181023: changed to int8_t
-int8_t Plugin_137_Read(byte Par1)
+void Plugin_137_FastLines(uint16_t color1, uint16_t color2)
 {
-  int8_t state = -1;
-  byte unit = (Par1 - 1) / 8;
-  byte port = Par1 - (unit * 8);
-  uint8_t address = 0x20 + unit;
-  if (unit > 7) address += 0x10;
 
-  // get the current pin status
-  Wire.requestFrom(address, (uint8_t)0x1);
-  if (Wire.available())
-  {
-    state = ((Wire.read() & _BV(port - 1)) >> (port - 1));
-  }
-  return state;
-}
+  int           x, y, w = tft.width(), h = tft.height();
 
-uint8_t Plugin_137_ReadAllPins(uint8_t address)
-{
-  uint8_t rawState = 0;
+  tft.fillScreen(ILI9341_BLACK);
 
-  Wire.requestFrom(address, (uint8_t)0x1);
-  if (Wire.available())
-  {
-    rawState =Wire.read();
-  }
-  return rawState;
+  for(y=0; y<h; y+=5) tft.drawFastHLine(0, y, w, color1);
+  for(x=0; x<w; x+=5) tft.drawFastVLine(x, 0, h, color2);
+
 }
 
 //********************************************************************************
-// PCF8574 write
+// Test text
 //********************************************************************************
-boolean Plugin_137_Write(byte Par1, byte Par2)
+void Plugin_137_TestText(int count)
 {
-  uint8_t unit = (Par1 - 1) / 8;
-  uint8_t port = Par1 - (unit * 8);
-  uint8_t address = 0x20 + unit;
-  if (unit > 7) address += 0x10;
-
-  //generate bitmask
-  int i = 0;
-  uint8_t portmask = 255;
-  unit = unit * 8 + 1; // calculate first pin
-
-  uint32_t key;
-
-  for(i=0; i<8; i++){
-    key = createKey(PLUGIN_ID_137,unit+i);
-
-    if (existPortStatus(key) && globalMapPortStatus[key].mode == PIN_MODE_OUTPUT && globalMapPortStatus[key].state == 0)
-      portmask &= ~(1 << i); //set port i = 0
-  }
-
-  key = createKey(PLUGIN_ID_137,Par1);
-
-  if (Par2 == 1)
-    portmask |= (1 << (port-1));
-  else
-    portmask &= ~(1 << (port-1));
-
-  Wire.beginTransmission(address);
-  Wire.write(portmask);
-  Wire.endTransmission();
-
-  return true;
+  int8_t taskIndex = getTaskIndexByName("Temperature");
+  int8_t BaseVarIndex = taskIndex * VARS_PER_TASK;
+  float value = UserVar[BaseVarIndex];
+  struct ts t;
+  char tmpStr[20] = {0};
+  DS3231_get(&t);
+  
+  tft.fillScreen(ILI9341_BLACK);
+  tft.setCursor(0, 0);
+  tft.setTextColor(ILI9341_GREEN);  
+  tft.setTextSize(3);
+  tft.println("GREEN HOUSE");
+    tft.setTextSize(2);
+  tft.println();
+  tft.setTextColor(ILI9341_YELLOW); 
+  sprintf_P(tmpStr, PSTR("%02d/%02d/%04d  %02d:%02d:%02d"),t.mday,t.mon,t.year,t.hour,t.min,t.sec);
+  tft.println(tmpStr);
+  tft.setTextColor(ILI9341_RED);    
+  tft.println();
+  sprintf_P(tmpStr, PSTR("Temp: %4.2f"), value);
+  tft.println(tmpStr);
+  tft.println();
+  tft.setTextColor(ILI9341_WHITE);
+  tft.setTextSize(3);
+  tft.println("Program #3");
+  tft.println();
+  tft.println("Shpinat");
+  tft.println();
+  tft.println("Pump   ON 08:00");
+  tft.println("Pump   ON 12:00");
+  tft.println("Pump   ON 16:00");
+  tft.println("Pump   ON 20:00");
+  tft.println("Light  ON 20:00");
+  tft.println("Light  OFF 08:00");
+  tft.println();
+  tft.println("Fan    ON/OFF 27/25");
+  tft.println("Heater ON/OFF 17/20");
 }
 #endif // USES_P137
