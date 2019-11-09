@@ -3,31 +3,6 @@
 //#################################### Plugin 137: PCF8574 ##############################################
 //#######################################################################################################
 
-/**************************************************\
-CONFIG
-TaskDevicePluginConfig settings:
-0: send boot state (true,false)
-1:
-2:
-3:
-4: use doubleclick (0,1,2,3)
-5: use longpress (0,1,2,3)
-6: LP fired (true,false)
-7: doubleclick counter (=0,1,2,3)
-
-TaskDevicePluginConfigFloat settings:
-0: debounce interval ms
-1: doubleclick interval ms
-2: longpress interval ms
-3: use safebutton (=0,1)
-
-TaskDevicePluginConfigLong settings:
-0: clickTime debounce ms
-1: clickTime doubleclick ms
-2: clickTime longpress ms
-3: safebutton counter (=0,1)
-\**************************************************/
-
 //#ifdef PLUGIN_BUILD_TESTING
 
 #define PLUGIN_137
@@ -53,6 +28,25 @@ TaskDevicePluginConfigLong settings:
 
 int testCount, curX, curY;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
+
+/**************************************************\
+Button structure
+\**************************************************/
+struct Button
+{
+  int8_t w;
+  int8_t h;
+  int8_t x,y;
+  int8_t color;
+  int8_t state;
+  char name[20];
+  Button()
+  {
+    w = 80;
+    h = 40;
+    color = ILI9341_DARKGREY;
+  }
+};
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -139,22 +133,20 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
     case PLUGIN_TEN_PER_SECOND:
       {
         testCount++;
-        tft.drawRect(10 + curX, 300, 100 + curX, 350, ILI9341_BLACK);
-        if(testCount > 20){
+        if(testCount > 10){
+          tft.fillRect(220, 0, 230, 10, ILI9341_GREEN);
           Plugin_137_TestText(testCount);
           testCount = 0;
           curX = 0;
         }else{
           curX += 5;
-          tft.drawRect(10 + curX, 300, 40 + curX, 320, ILI9341_BLUE);
+          tft.fillRect(220, 0, 230, 10, ILI9341_BLACK);
         }
         success = true;
         break;
       }
-  
-
       //giig1967g: Added EXIT function
-      case PLUGIN_EXIT:
+    case PLUGIN_EXIT:
       {
         // removeTaskFromPort(createKey(PLUGIN_ID_137,CONFIG_PORT));
         break;
@@ -164,21 +156,6 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 } // function
 
 //********************************************************************************
-// Test FastLines
-//********************************************************************************
-void Plugin_137_FastLines(uint16_t color1, uint16_t color2)
-{
-
-  int           x, y, w = tft.width(), h = tft.height();
-
-  tft.fillScreen(ILI9341_BLACK);
-
-  for(y=0; y<h; y+=5) tft.drawFastHLine(0, y, w, color1);
-  for(x=0; x<w; x+=5) tft.drawFastVLine(x, 0, h, color2);
-
-}
-
-//********************************************************************************
 // Test text
 //********************************************************************************
 void Plugin_137_TestText(int count)
@@ -186,31 +163,36 @@ void Plugin_137_TestText(int count)
   int8_t taskIndex = getTaskIndexByName("Temperature");
   int8_t BaseVarIndex = taskIndex * VARS_PER_TASK;
   float value = UserVar[BaseVarIndex];
-  struct ts t;
-  char tmpStr[20] = {0};
-  DS3231_get(&t);
+  String tmpStr;
+  char tmpBuf[20] = {0};
   
-  tft.fillScreen(ILI9341_BLACK);
+//  tft.fillScreen(ILI9341_BLACK);
   tft.setCursor(0, 0);
   tft.setTextColor(ILI9341_GREEN);  
   tft.setTextSize(3);
   tft.println("GREEN HOUSE");
     tft.setTextSize(2);
   tft.println();
-  tft.setTextColor(ILI9341_YELLOW); 
-  sprintf_P(tmpStr, PSTR("%02d/%02d/%04d  %02d:%02d:%02d"),t.mday,t.mon,t.year,t.hour,t.min,t.sec);
-  tft.println(tmpStr);
+  tft.setTextColor(ILI9341_YELLOW);
+  if (systemTimePresent())
+    {
+      tmpStr = getValue(LabelType::LOCAL_TIME);
+    }
+    else {
+      tmpStr = F("No sys time");
+    } 
+  tft.fillRect(0, 30, 240, 40, ILI9341_BLACK);
+  tft.println(tmpStr.c_str());
   tft.setTextColor(ILI9341_RED);    
   tft.println();
-  sprintf_P(tmpStr, PSTR("Temp: %4.2f"), value);
-  tft.println(tmpStr);
+  sprintf_P(tmpBuf, PSTR("Temperature: %4.2f"), value);
+  tft.println(tmpBuf);
   tft.println();
+  taskIndex = getTaskIndexByName("Pump");
+  sprintf_P(tmpBuf, PSTR("Program: %d"),Settings.TaskDevicePluginConfig[taskIndex][0]);
   tft.setTextColor(ILI9341_WHITE);
-  tft.setTextSize(3);
-  tft.println("Program #3");
-  tft.println();
-  tft.println("Shpinat");
-  tft.println();
+  tft.println(tmpBuf);
+/*  tft.println();
   tft.println("Pump   ON 08:00");
   tft.println("Pump   ON 12:00");
   tft.println("Pump   ON 16:00");
@@ -220,5 +202,10 @@ void Plugin_137_TestText(int count)
   tft.println();
   tft.println("Fan    ON/OFF 27/25");
   tft.println("Heater ON/OFF 17/20");
+*/
+  tft.println();
+  tft.setTextSize(1);
+  tmpStr = getValue(LabelType::IP_ADDRESS);
+  tft.println(tmpStr.c_str());
 }
 #endif // USES_P137
