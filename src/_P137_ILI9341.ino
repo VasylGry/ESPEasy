@@ -37,13 +37,14 @@ struct Button
   int8_t w;
   int8_t h;
   int8_t x,y;
-  int8_t color;
+  int16_t color;
   int8_t state;
-  char name[20];
-  Button()
+  String& name;
+  Button(int8_t aX, int8_t aY, String aName) : x(aX), y(aY), name(aName)
   {
     w = 80;
     h = 40;
+    state = 0;
     color = ILI9341_DARKGREY;
   }
 };
