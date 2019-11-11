@@ -24,10 +24,14 @@
 
 #include <Adafruit_ILI9341.h>
 #include <Adafruit_GFX.h>
+#include <XPT2046.h>
 #include "ds3231.h"
 
-int testCount, curX, curY;
+int testCount;
+bool doTouch;
+uint16_t touch_x, touch_y;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
+XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
 
 /**************************************************\
 Button structure
@@ -38,16 +42,37 @@ struct Button
   int8_t h;
   int8_t x,y;
   int16_t color;
-  int8_t state;
-  String& name;
+  bool state;
+  String name;
   Button(int8_t aX, int8_t aY, String aName) : x(aX), y(aY), name(aName)
   {
     w = 80;
     h = 40;
-    state = 0;
+    state = false;
     color = ILI9341_DARKGREY;
   }
+  void draw(Adafruit_ILI9341& tft, bool aState)
+  {
+    state = aState;
+    if(state)
+      tft.fillRect(x, y, w, h, ILI9341_GREEN);
+    else
+      tft.fillRect(x, y, w, h, ILI9341_DARKGREY);
+    tft.setCursor(x + 6 , y + (h/2));
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextSize(2);
+    tft.println(name);
+  }
+  bool touch(int16_t tx, int16_t ty)
+  {
+    if((tx > x && tx < (x + w)) && (ty > x && ty < (y + h)))
+      return true;
+    else
+      return false;
+  }
 };
+
+Button btnPump(120, 120, "pump");
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -127,29 +152,60 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
     case PLUGIN_INIT:
       {
         tft.begin();
+        touch.begin(240, 320);
+        touch.setCalibration(255, 1024, 255, 1024);
         tft.fillScreen(ILI9341_BLACK);
+        Plugin_137_TestText(testCount);
+        btnPump.draw(tft, false);
         success = true;
         break;
       }
-    case PLUGIN_TEN_PER_SECOND:
+/*    case PLUGIN_TEN_PER_SECOND:
+    case PLUGIN_READ:
       {
-        testCount++;
-        if(testCount > 10){
-          tft.fillRect(220, 0, 230, 10, ILI9341_GREEN);
+        if(touch.isTouching() && !doTouch)
+        {
+          touch.getPosition(touch_x, touch_y, MODE_DFR, 10);
+          doTouch = true;
+        }
+        success = true;
+        break;
+      }
+      */
+    case PLUGIN_ONCE_A_SECOND:
+      {
+        if(touch.isTouching() && !doTouch)
+        {
+          touch.getPosition(touch_x, touch_y);
+          doTouch = true;
+        }
+       if(doTouch) {
+          testCount++;
+          String log = F("9341 : touch_x: ");
+          log += touch_x;
+          log += F(" touch_y: ");
+          log += touch_x;
+          addLog(LOG_LEVEL_INFO, log);
+          if(btnPump.touch(touch_x,touch_y))
+            btnPump.draw(tft, true);
+          else
+            btnPump.draw(tft, false);
+        }
+/*        if(testCount > 10){
+          tft.fillRect(225, 10, 230, 20, ILI9341_GREEN);
           Plugin_137_TestText(testCount);
           testCount = 0;
           curX = 0;
         }else{
           curX += 5;
           tft.fillRect(220, 0, 230, 10, ILI9341_BLACK);
-        }
+        } */
+        doTouch = false;
         success = true;
         break;
       }
-      //giig1967g: Added EXIT function
     case PLUGIN_EXIT:
       {
-        // removeTaskFromPort(createKey(PLUGIN_ID_137,CONFIG_PORT));
         break;
       }
   }// switch
@@ -167,11 +223,11 @@ void Plugin_137_TestText(int count)
   String tmpStr;
   char tmpBuf[20] = {0};
   
-//  tft.fillScreen(ILI9341_BLACK);
+  tft.fillScreen(ILI9341_BLACK);
   tft.setCursor(0, 0);
   tft.setTextColor(ILI9341_GREEN);  
   tft.setTextSize(3);
-  tft.println("GREEN HOUSE");
+  tft.println(" GREEN BOX");
     tft.setTextSize(2);
   tft.println();
   tft.setTextColor(ILI9341_YELLOW);
