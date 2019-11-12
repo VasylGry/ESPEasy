@@ -24,14 +24,16 @@
 
 #include <Adafruit_ILI9341.h>
 #include <Adafruit_GFX.h>
-#include <XPT2046.h>
+//#include <XPT2046.h>
+#include <XPT2046_Touchscreen.h>
 #include "ds3231.h"
 
 int testCount;
 bool doTouch;
 uint16_t touch_x, touch_y;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
-XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
+//XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
+XPT2046_Touchscreen touch(PLUGIN_137_TS_CS);
 
 /**************************************************\
 Button structure
@@ -151,41 +153,39 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 
     case PLUGIN_INIT:
       {
+        doTouch = false;
         tft.begin();
-        touch.begin(240, 320);
-        touch.setCalibration(255, 1024, 255, 1024);
+        //touch.begin(240, 320);
+        //touch.setCalibration(255, 1024, 255, 1024);
         tft.fillScreen(ILI9341_BLACK);
         Plugin_137_TestText(testCount);
         btnPump.draw(tft, false);
         success = true;
         break;
       }
-/*    case PLUGIN_TEN_PER_SECOND:
+//    case PLUGIN_TEN_PER_SECOND:
     case PLUGIN_READ:
       {
-        if(touch.isTouching() && !doTouch)
-        {
-          touch.getPosition(touch_x, touch_y, MODE_DFR, 10);
-          doTouch = true;
-        }
-        success = true;
-        break;
-      }
-      */
-    case PLUGIN_ONCE_A_SECOND:
-      {
-        if(touch.isTouching() && !doTouch)
-        {
-          touch.getPosition(touch_x, touch_y);
-          doTouch = true;
-        }
-       if(doTouch) {
-          testCount++;
+         boolean istouched = ts.touched();
+        if (istouched) {
+          TS_Point p = ts.getPoint();
+
+        //if(touch.isTouching() && !doTouch)
+        //{
+        //  touch.getPosition(touch_x, touch_y);
           String log = F("9341 : touch_x: ");
           log += touch_x;
           log += F(" touch_y: ");
           log += touch_x;
           addLog(LOG_LEVEL_INFO, log);
+        }
+        success = true;
+        break;
+      }
+    case PLUGIN_ONCE_A_SECOND:
+      {
+       if(doTouch) {
+          testCount++;
           if(btnPump.touch(touch_x,touch_y))
             btnPump.draw(tft, true);
           else
