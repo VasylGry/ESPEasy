@@ -529,12 +529,12 @@ To create/register a plugin, you have to :
     #define USES_P008   // RFID
     #define USES_P009   // MCP
 
-    #define USES_P010   // BH1750
+//    #define USES_P010   // BH1750
     #define USES_P011   // PME
     #define USES_P012   // LCD
     #define USES_P013   // HCSR04
     #define USES_P014   // SI7021
-    #define USES_P015   // TSL2561
+//    #define USES_P015   // TSL2561
 //    #define USES_P016   // IR
     #define USES_P017   // PN532
     #define USES_P018   // Dust
@@ -643,7 +643,7 @@ To create/register a plugin, you have to :
     #define USES_P080   // iButton Sensor  DS1990A
     #define USES_P081   // Cron
     #define USES_P082   // GPS
-    #define USES_P083   // SGP30
+//    #define USES_P083   // SGP30
     #define USES_P084   // VEML6070
     #define USES_P085   // AcuDC24x
     #define USES_P086   // Receiving values according Homie convention. Works together with C014 Homie controller

@@ -14,26 +14,20 @@
 #define PLUGIN_137_LCD_CS     2
 #define PLUGIN_137_TS_CS      15
 #define PLUGIN_137_TS_IRQ     16
-#define PLUGIN_137_DC_LOW 1
-#define PLUGIN_137_DC_HIGH 2
-#define PLUGIN_137_DC_BOTH 3
-#define PLUGIN_137_LONGPRESS_DISABLED 0
-#define PLUGIN_137_LONGPRESS_LOW 1
-#define PLUGIN_137_LONGPRESS_HIGH 2
-#define PLUGIN_137_LONGPRESS_BOTH 3
 
-#include <Adafruit_ILI9341.h>
+#include <SPI.h>
+#include <Adafruit_ILI9341esp.h>
 #include <Adafruit_GFX.h>
-//#include <XPT2046.h>
-#include <XPT2046_Touchscreen.h>
+#include <XPT2046.h>
+//#include <XPT2046_Touchscreen.h>
 #include "ds3231.h"
 
 int testCount;
 bool doTouch;
 uint16_t touch_x, touch_y;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
-//XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
-XPT2046_Touchscreen touch(PLUGIN_137_TS_CS);
+XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
+// XPT2046_Touchscreen touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
 
 /**************************************************\
 Button structure
@@ -60,7 +54,7 @@ struct Button
       tft.fillRect(x, y, w, h, ILI9341_GREEN);
     else
       tft.fillRect(x, y, w, h, ILI9341_DARKGREY);
-    tft.setCursor(x + 6 , y + (h/2));
+    tft.setCursor(x + 10 , y + 10);
     tft.setTextColor(ILI9341_WHITE);
     tft.setTextSize(2);
     tft.println(name);
@@ -74,7 +68,7 @@ struct Button
   }
 };
 
-Button btnPump(120, 120, "pump");
+Button btnPump(120, 120, "PUMP");
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -88,13 +82,13 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
     case PLUGIN_DEVICE_ADD:
       {
         Device[++deviceCount].Number = PLUGIN_ID_137;
-        Device[deviceCount].Type = DEVICE_TYPE_I2C;
-        Device[deviceCount].VType = SENSOR_TYPE_SWITCH;
-        Device[deviceCount].Ports = 8;
+        Device[deviceCount].Type = DEVICE_TYPE_SINGLE;
+        Device[deviceCount].VType = SENSOR_TYPE_NONE;
+        Device[deviceCount].Ports = 0;
         Device[deviceCount].PullUpOption = false;
         Device[deviceCount].InverseLogicOption = true;
         Device[deviceCount].FormulaOption = false;
-        Device[deviceCount].ValueCount = 1;
+        Device[deviceCount].ValueCount = 0;
         Device[deviceCount].SendDataOption = true;
         Device[deviceCount].TimerOption = true;
         Device[deviceCount].TimerOptional = true;
@@ -110,7 +104,7 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 
     case PLUGIN_GET_DEVICEVALUENAMES:
       {
-        strcpy_P(ExtraTaskSettings.TaskDeviceValueNames[0], PSTR(PLUGIN_VALUENAME1_137));
+    //    strcpy_P(ExtraTaskSettings.TaskDeviceValueNames[0], PSTR(PLUGIN_VALUENAME1_137));
         break;
       }
 
@@ -154,29 +148,32 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
     case PLUGIN_INIT:
       {
         doTouch = false;
+        SPI.setFrequency(ESP_SPI_FREQ);
         tft.begin();
-        //touch.begin(240, 320);
+        //Plagin_137_XPT2046_init(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
+        //Plagin_137_XPT2046_PS(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
+        touch.begin(tft.width(), tft.height());
         //touch.setCalibration(255, 1024, 255, 1024);
         tft.fillScreen(ILI9341_BLACK);
         Plugin_137_TestText(testCount);
-        btnPump.draw(tft, false);
+        btnPump.draw(tft, true);
         success = true;
         break;
       }
-//    case PLUGIN_TEN_PER_SECOND:
-    case PLUGIN_READ:
+    case PLUGIN_TEN_PER_SECOND:
+//    case PLUGIN_READ:
       {
-         boolean istouched = ts.touched();
-        if (istouched) {
-          TS_Point p = ts.getPoint();
-
-        //if(touch.isTouching() && !doTouch)
-        //{
-        //  touch.getPosition(touch_x, touch_y);
-          String log = F("9341 : touch_x: ");
+        if(touch.isTouching()) // && !doTouch)
+        {
+          // int x,y;
+          doTouch = true;
+          String log = F("9341 => ");
+          log += F(" touched at: ");
+          touch.getPosition(touch_x, touch_y);
+          log += F(" touch_x=");
           log += touch_x;
-          log += F(" touch_y: ");
-          log += touch_x;
+          log += F(" touch_y=");
+          log += touch_y;
           addLog(LOG_LEVEL_INFO, log);
         }
         success = true;
@@ -184,14 +181,14 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
       }
     case PLUGIN_ONCE_A_SECOND:
       {
+        /*
        if(doTouch) {
-          testCount++;
-          if(btnPump.touch(touch_x,touch_y))
+          if(testCount)
             btnPump.draw(tft, true);
           else
             btnPump.draw(tft, false);
         }
-/*        if(testCount > 10){
+        if(testCount > 10){
           tft.fillRect(225, 10, 230, 20, ILI9341_GREEN);
           Plugin_137_TestText(testCount);
           testCount = 0;
@@ -265,4 +262,128 @@ void Plugin_137_TestText(int count)
   tmpStr = getValue(LabelType::IP_ADDRESS);
   tft.println(tmpStr.c_str());
 }
+//******************************************************************************************
+#define TochXSme 170         // начальное смещение по X   конечное значение 1960
+#define TochXMax 2000        //  X   конечное значение 1960
+#define TochYSme 95          // начальное смещение по Y   конечное значение 1930
+#define TochYMax 2000        //  Y   конечное значение 1930
+#define TochXProp 5.7        //пропорция пересчета в пикселы экрана Х
+#define TochYProp 7.75       //пропорция пересчета в пикселы экрана Y
+int iTochXTft,iTochYTft,iTochXAcp,iTochYAcp; 
+//******************************************************************************************
+void Plagin_137_XPT2046_PS(uint8_t csPin, uint8_t irqPin)
+{
+  // Issue a throw-away read, with power-down enabled (PD{1,0} == 0b00)
+  // Otherwise, ADC is disabled
+  int8_t tmp = (0b1101  << 4) | 0b0100;
+  digitalWrite(csPin, LOW);
+  SPI.transfer(tmp);
+  SPI.transfer16(0);  // Flush, just to be sure
+  digitalWrite(csPin, HIGH);
+}
+//******************************************************************************************  
+void Plagin_137_XPT2046_init(uint8_t csPin, uint8_t irqPin)
+{
+  //Initiallize the SPI1 port.
+	  SPI.begin();
+	  SPI.setClockDivider(SPI_CLOCK_DIV32);  // SPI_CLOCK_DIV8 начинает работать с 8 и выше
+	// эффекта не было
+	//   SPI.setDataMode(SPI_MODE3);   //SPI_MODE0 SPI_MODE1    SPI_MODE2  SPI_MODE3 
+	// инициализация порта выбора устройства 
+	  pinMode(csPin, OUTPUT);
+    digitalWrite(csPin, HIGH);
+	// инициализация порта на который приходит сигнал прерывания от экрана PIN 
+	  pinMode(irqPin, INPUT); 
+}
+int Plagin_137_XPT2046_ReadXY(int iKol)
+{
+  float flP;
+	  byte  bXH,bXL,bYH,bYL;
+	  int x1=0,y1=0,x=0,y=0, iKolRead=20,iR,iKolReadOK=0;
+	      iTochXAcp=0;
+	      iTochYAcp=0; 
+	       if(iKol<2) iKolRead=1;
+	       if(iKol>1&&iKol<20)  iKolRead=iKol;
+	// выбор устройства    
+	       digitalWrite(PLUGIN_137_TS_CS, LOW);
+	       for(iR=0;iR<iKolRead;iR++)
+	       {
+	//даем команду на пересылку позиции Х
+	         SPI.transfer(0X90);
+	// считываем старший байт
+	        bXH = SPI.transfer(0);
+          iTochXTft = bXH << 8;
+	// убираем не нужный старший бит  !!!!!    
+	         bXH=bXH&0X7F;  //
+	         x=bXH;
+	// сдвигаем в лево на 4
+	         x=bXH<<4;           
+	// читаем младший байт
+	         bXL = SPI.transfer(0);
+           iTochXTft += bXL;
+	// убираем ненужный старший бит     
+	         bXL=bXL<<1;
+	// ставим нужные 4 байта в младшие разряды 
+	         bXL=bXL>>4;
+	         x1=bXL;     
+	// совмещаем два байта - данные Х с АЦП
+	         x=x|x1;
+	//даем команду на пересылку позиции Y
+	         SPI.transfer(0XD0);
+	// считываем старший байт
+	          bYH = SPI.transfer(0);
+            iTochYTft = bYH << 8;
+	// убираем не нужный старший бит  !!!!!    
+	          bYH=bYH&0X7F;  //
+	// сдвигаем в лево на 4
+	          y=bYH<<4;           
+	// читаем младший байт
+	          bYL = SPI.transfer(0);
+            iTochYTft += bYL;
+	// ставим в младшие разряды      
+	          bYL=bYL<<1;
+	          bYL=bYL>>4;
+	          y1=bYL;     
+	// совмещаем два байта и получаем данные c АЦП по Y
+	          y=y|y1;
+	// проверяем данные с АЦП - в ганицах экрана? Если да то берем среднее с предыдущими - правда разници при 1 и несколких считываний я не заметил
+	         if(x>=TochXSme&&x<=TochXMax&&y>=TochYSme&&y<=TochYMax) 
+	         {  iKolReadOK++;
+	            if(iTochXAcp==0)  iTochXAcp=x;
+	            else  iTochXAcp=(iTochXAcp+x)/2;
+	            if(iTochYAcp==0)  iTochYAcp=y;
+	            else  iTochYAcp=(iTochYAcp+y)/2; 
+	         }
+	       }  
+	// отключаем выбор устройства      
+	       digitalWrite(PLUGIN_137_TS_CS, HIGH);
+         return (1);        
+	// проверяем выход за границы
+	      if(iTochXAcp>=TochXSme&&iTochXAcp<=TochXMax&&iTochYAcp>=TochYSme&&iTochYAcp<=TochYMax)
+	       { flP=(iTochXAcp-TochXSme)/TochXProp;       //пересчет в координаты дисплея
+	         iTochXTft=flP;
+	         flP=(iTochYAcp-TochYSme)/TochYProp;     
+	         iTochYTft=flP;      
+	         return(iKolReadOK);
+	       } 
+	       else
+	       {
+	         iTochXTft=0;
+	         iTochYTft=0;      
+	         return(0);
+	       }
+
+}
+//******************************************************************************************
+// получение кординаты X
+int Plagin_137_XPT2046GetX(void)
+{
+  return(iTochXTft);
+}
+// получение кординаты Y
+int Plagin_137_XPT2046GetY(void)
+{
+  return(iTochYTft);
+}
+
 #endif // USES_P137
