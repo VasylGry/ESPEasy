@@ -22,7 +22,6 @@
 //#include <XPT2046_Touchscreen.h>
 #include "ds3231.h"
 
-int testCount;
 bool doTouch;
 uint16_t touch_x, touch_y;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
@@ -34,13 +33,13 @@ Button structure
 \**************************************************/
 struct Button
 {
-  int8_t w;
-  int8_t h;
-  int8_t x,y;
+  int16_t w;
+  int16_t h;
+  int16_t x,y;
   int16_t color;
   bool state;
   String name;
-  Button(int8_t aX, int8_t aY, String aName) : x(aX), y(aY), name(aName)
+  Button(int16_t aX, int16_t aY, String aName) : x(aX), y(aY), name(aName)
   {
     w = 80;
     h = 40;
@@ -63,14 +62,12 @@ struct Button
   {
     int16_t ax = (int16_t)(tx * 1.5);
     int16_t ay = (int16_t)(ty * 1.5);
-    if((ax > x && ax < (x + w)) && (ay > y && ay < (y + h)))
-      return true;
-    else
-      return false;
+    return (ax >= x)&& (ax < (int16_t)(x + w)) && (ay >= y) && (ay < (int16_t)(y + h));
   }
 };
 
-Button btnPump(120, 120, "PUMP");
+Button btnPump = Button(140, 140, "PUMP");
+Button btnLight = Button(140, 180, "LIGHT");
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -158,58 +155,61 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
         log += tft.height();
         addLog(LOG_LEVEL_INFO, log);
         touch.begin(tft.width(), tft.height());
+        //touch.setRotation(touch.ROT180);
         //touch.setCalibration(2047, 715, 2047, 784);
-        tft.fillScreen(ILI9341_BLACK);
-        Plugin_137_TestText(testCount);
-        btnPump.draw(tft, true);
+        Plugin_137_MainScreen();
         success = true;
         break;
       }
     case PLUGIN_TEN_PER_SECOND:
 //    case PLUGIN_READ:
       {
-        if(touch.isTouching()) // && !doTouch)
+        if(touch.isTouching() && !doTouch)
         {
-          // int x,y;
+          touch.getPosition(touch_x, touch_y);;
           doTouch = true;
-          String log = F("9341 => ");
-          log += F(" touched at: ");
-          touch.getPosition(touch_x, touch_y);
-          if(btnPump.touch(touch_x, touch_y))
-            log += F(" touched !!! ");
-          log += F(" touch_x=");
-          log += touch_x;
-          log += F(" touch_y=");
-          log += touch_y;
-          addLog(LOG_LEVEL_INFO, log);
         }
         success = true;
         break;
       }
     case PLUGIN_ONCE_A_SECOND:
       {
-        /*
-       if(doTouch) {
-          if(testCount)
-            btnPump.draw(tft, true);
-          else
-            btnPump.draw(tft, false);
-        }
-        if(testCount > 10){
-          tft.fillRect(225, 10, 230, 20, ILI9341_GREEN);
-          Plugin_137_TestText(testCount);
-          testCount = 0;
-          curX = 0;
-        }else{
-          curX += 5;
-          tft.fillRect(220, 0, 230, 10, ILI9341_BLACK);
-        } */
-        doTouch = false;
+        if(doTouch){
+          String log = F("9341 => "); 
+          if(btnPump.touch(touch_x, touch_y))
+          {
+            log += F(" Pump ");
+            if(btnPump.state)
+            {
+                Plugin_019_Write(57, 1);
+                btnPump.state = false;
+            }
+            else
+            {
+                Plugin_019_Write(57, 0);
+                btnPump.state = true;
+            }
+          }
+         if(btnLight.touch(touch_x, touch_y)){
+            log += F(" Light ");
+            btnLight.state = btnLight.state ? false : true;
+            Plugin_019_Write(58, (btnLight.state ? 0 : 1));
+          }
+          log += F(" touched at: ");
+          log += F(" touch_x=");
+          log += touch_x;
+          log += F(" touch_y=");
+          log += touch_y;
+          addLog(LOG_LEVEL_INFO, log);
+          Plugin_137_MainScreen();
+          doTouch = false;
+        }      
         success = true;
         break;
       }
     case PLUGIN_EXIT:
       {
+        success = true;
         break;
       }
   }// switch
@@ -219,7 +219,7 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 //********************************************************************************
 // Test text
 //********************************************************************************
-void Plugin_137_TestText(int count)
+void Plugin_137_MainScreen()
 {
   int8_t taskIndex = getTaskIndexByName("Temperature");
   int8_t BaseVarIndex = taskIndex * VARS_PER_TASK;
@@ -265,8 +265,11 @@ void Plugin_137_TestText(int count)
   tft.println("Heater ON/OFF 17/20");
 */
   tft.println();
-  tft.setTextSize(1);
+ // tft.setTextSize(1);
   tmpStr = getValue(LabelType::IP_ADDRESS);
   tft.println(tmpStr.c_str());
+
+  btnLight.draw(tft, btnLight.state);
+  btnPump.draw(tft, btnPump.state);
 }
 #endif // USES_P137
