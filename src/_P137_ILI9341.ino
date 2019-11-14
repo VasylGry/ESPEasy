@@ -61,7 +61,9 @@ struct Button
   }
   bool touch(int16_t tx, int16_t ty)
   {
-    if((tx > x && tx < (x + w)) && (ty > x && ty < (y + h)))
+    int16_t ax = (int16_t)(tx * 1.5);
+    int16_t ay = (int16_t)(ty * 1.5);
+    if((ax > x && ax < (x + w)) && (ay > y && ay < (y + h)))
       return true;
     else
       return false;
@@ -150,10 +152,13 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
         doTouch = false;
         SPI.setFrequency(ESP_SPI_FREQ);
         tft.begin();
-        //Plagin_137_XPT2046_init(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
-        //Plagin_137_XPT2046_PS(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
+        String log = F("9341 => tft.width=");
+        log += tft.width();
+        log += F(" tft.heigth=");
+        log += tft.height();
+        addLog(LOG_LEVEL_INFO, log);
         touch.begin(tft.width(), tft.height());
-        //touch.setCalibration(255, 1024, 255, 1024);
+        //touch.setCalibration(2047, 715, 2047, 784);
         tft.fillScreen(ILI9341_BLACK);
         Plugin_137_TestText(testCount);
         btnPump.draw(tft, true);
@@ -170,6 +175,8 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
           String log = F("9341 => ");
           log += F(" touched at: ");
           touch.getPosition(touch_x, touch_y);
+          if(btnPump.touch(touch_x, touch_y))
+            log += F(" touched !!! ");
           log += F(" touch_x=");
           log += touch_x;
           log += F(" touch_y=");
@@ -262,128 +269,4 @@ void Plugin_137_TestText(int count)
   tmpStr = getValue(LabelType::IP_ADDRESS);
   tft.println(tmpStr.c_str());
 }
-//******************************************************************************************
-#define TochXSme 170         // начальное смещение по X   конечное значение 1960
-#define TochXMax 2000        //  X   конечное значение 1960
-#define TochYSme 95          // начальное смещение по Y   конечное значение 1930
-#define TochYMax 2000        //  Y   конечное значение 1930
-#define TochXProp 5.7        //пропорция пересчета в пикселы экрана Х
-#define TochYProp 7.75       //пропорция пересчета в пикселы экрана Y
-int iTochXTft,iTochYTft,iTochXAcp,iTochYAcp; 
-//******************************************************************************************
-void Plagin_137_XPT2046_PS(uint8_t csPin, uint8_t irqPin)
-{
-  // Issue a throw-away read, with power-down enabled (PD{1,0} == 0b00)
-  // Otherwise, ADC is disabled
-  int8_t tmp = (0b1101  << 4) | 0b0100;
-  digitalWrite(csPin, LOW);
-  SPI.transfer(tmp);
-  SPI.transfer16(0);  // Flush, just to be sure
-  digitalWrite(csPin, HIGH);
-}
-//******************************************************************************************  
-void Plagin_137_XPT2046_init(uint8_t csPin, uint8_t irqPin)
-{
-  //Initiallize the SPI1 port.
-	  SPI.begin();
-	  SPI.setClockDivider(SPI_CLOCK_DIV32);  // SPI_CLOCK_DIV8 начинает работать с 8 и выше
-	// эффекта не было
-	//   SPI.setDataMode(SPI_MODE3);   //SPI_MODE0 SPI_MODE1    SPI_MODE2  SPI_MODE3 
-	// инициализация порта выбора устройства 
-	  pinMode(csPin, OUTPUT);
-    digitalWrite(csPin, HIGH);
-	// инициализация порта на который приходит сигнал прерывания от экрана PIN 
-	  pinMode(irqPin, INPUT); 
-}
-int Plagin_137_XPT2046_ReadXY(int iKol)
-{
-  float flP;
-	  byte  bXH,bXL,bYH,bYL;
-	  int x1=0,y1=0,x=0,y=0, iKolRead=20,iR,iKolReadOK=0;
-	      iTochXAcp=0;
-	      iTochYAcp=0; 
-	       if(iKol<2) iKolRead=1;
-	       if(iKol>1&&iKol<20)  iKolRead=iKol;
-	// выбор устройства    
-	       digitalWrite(PLUGIN_137_TS_CS, LOW);
-	       for(iR=0;iR<iKolRead;iR++)
-	       {
-	//даем команду на пересылку позиции Х
-	         SPI.transfer(0X90);
-	// считываем старший байт
-	        bXH = SPI.transfer(0);
-          iTochXTft = bXH << 8;
-	// убираем не нужный старший бит  !!!!!    
-	         bXH=bXH&0X7F;  //
-	         x=bXH;
-	// сдвигаем в лево на 4
-	         x=bXH<<4;           
-	// читаем младший байт
-	         bXL = SPI.transfer(0);
-           iTochXTft += bXL;
-	// убираем ненужный старший бит     
-	         bXL=bXL<<1;
-	// ставим нужные 4 байта в младшие разряды 
-	         bXL=bXL>>4;
-	         x1=bXL;     
-	// совмещаем два байта - данные Х с АЦП
-	         x=x|x1;
-	//даем команду на пересылку позиции Y
-	         SPI.transfer(0XD0);
-	// считываем старший байт
-	          bYH = SPI.transfer(0);
-            iTochYTft = bYH << 8;
-	// убираем не нужный старший бит  !!!!!    
-	          bYH=bYH&0X7F;  //
-	// сдвигаем в лево на 4
-	          y=bYH<<4;           
-	// читаем младший байт
-	          bYL = SPI.transfer(0);
-            iTochYTft += bYL;
-	// ставим в младшие разряды      
-	          bYL=bYL<<1;
-	          bYL=bYL>>4;
-	          y1=bYL;     
-	// совмещаем два байта и получаем данные c АЦП по Y
-	          y=y|y1;
-	// проверяем данные с АЦП - в ганицах экрана? Если да то берем среднее с предыдущими - правда разници при 1 и несколких считываний я не заметил
-	         if(x>=TochXSme&&x<=TochXMax&&y>=TochYSme&&y<=TochYMax) 
-	         {  iKolReadOK++;
-	            if(iTochXAcp==0)  iTochXAcp=x;
-	            else  iTochXAcp=(iTochXAcp+x)/2;
-	            if(iTochYAcp==0)  iTochYAcp=y;
-	            else  iTochYAcp=(iTochYAcp+y)/2; 
-	         }
-	       }  
-	// отключаем выбор устройства      
-	       digitalWrite(PLUGIN_137_TS_CS, HIGH);
-         return (1);        
-	// проверяем выход за границы
-	      if(iTochXAcp>=TochXSme&&iTochXAcp<=TochXMax&&iTochYAcp>=TochYSme&&iTochYAcp<=TochYMax)
-	       { flP=(iTochXAcp-TochXSme)/TochXProp;       //пересчет в координаты дисплея
-	         iTochXTft=flP;
-	         flP=(iTochYAcp-TochYSme)/TochYProp;     
-	         iTochYTft=flP;      
-	         return(iKolReadOK);
-	       } 
-	       else
-	       {
-	         iTochXTft=0;
-	         iTochYTft=0;      
-	         return(0);
-	       }
-
-}
-//******************************************************************************************
-// получение кординаты X
-int Plagin_137_XPT2046GetX(void)
-{
-  return(iTochXTft);
-}
-// получение кординаты Y
-int Plagin_137_XPT2046GetY(void)
-{
-  return(iTochYTft);
-}
-
 #endif // USES_P137
