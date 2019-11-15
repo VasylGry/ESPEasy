@@ -24,6 +24,8 @@
 
 bool doTouch;
 uint16_t touch_x, touch_y;
+String timeStr = "1970-01-01 00:00:00";
+String ipStr = "(IP unset)";
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
 XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
 // XPT2046_Touchscreen touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
@@ -36,6 +38,7 @@ struct Button
   int16_t w;
   int16_t h;
   int16_t x,y;
+  int16_t text_x;
   int16_t color;
   bool state;
   String name;
@@ -43,6 +46,7 @@ struct Button
   {
     w = 80;
     h = 40;
+    text_x = 10;
     state = false;
     color = ILI9341_DARKGREY;
   }
@@ -53,21 +57,24 @@ struct Button
       tft.fillRect(x, y, w, h, ILI9341_GREEN);
     else
       tft.fillRect(x, y, w, h, ILI9341_DARKGREY);
-    tft.setCursor(x + 10 , y + 10);
+    tft.setCursor(x + text_x, y + 10);
     tft.setTextColor(ILI9341_WHITE);
     tft.setTextSize(2);
     tft.println(name);
   }
   bool touch(int16_t tx, int16_t ty)
   {
-    int16_t ax = (int16_t)(tx * 1.5);
-    int16_t ay = (int16_t)(ty * 1.5);
+    int16_t ax = (int16_t)(tx * 2);
+    int16_t ay = (int16_t)(ty * 1);
     return (ax >= x)&& (ax < (int16_t)(x + w)) && (ay >= y) && (ay < (int16_t)(y + h));
   }
 };
 
-Button btnPump = Button(140, 140, "PUMP");
-Button btnLight = Button(140, 180, "LIGHT");
+Button btnPump = Button(20, 160, "PUMP");
+Button btnLight = Button(150, 160, "LIGHT");
+Button btnFan = Button(20, 210, "FAN");
+Button btnHeat = Button(150, 210, "HEAT");
+Button btnSetup = Button(20, 270, "SETUP");
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -147,6 +154,8 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
     case PLUGIN_INIT:
       {
         doTouch = false;
+        btnSetup.w = 210;
+        btnSetup.text_x = 70;
         SPI.setFrequency(ESP_SPI_FREQ);
         tft.begin();
         String log = F("9341 => tft.width=");
@@ -155,9 +164,10 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
         log += tft.height();
         addLog(LOG_LEVEL_INFO, log);
         touch.begin(tft.width(), tft.height());
-        //touch.setRotation(touch.ROT180);
+        touch.setRotation(touch.ROT270);
         //touch.setCalibration(2047, 715, 2047, 784);
-        Plugin_137_MainScreen();
+        tft.fillScreen(ILI9341_BLACK);
+        Plugin_137_MainScreen(true);
         success = true;
         break;
       }
@@ -201,9 +211,8 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
           log += F(" touch_y=");
           log += touch_y;
           addLog(LOG_LEVEL_INFO, log);
-          Plugin_137_MainScreen();
-          doTouch = false;
-        }      
+        }
+        Plugin_137_MainScreen(doTouch);      
         success = true;
         break;
       }
@@ -219,7 +228,7 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 //********************************************************************************
 // Test text
 //********************************************************************************
-void Plugin_137_MainScreen()
+void Plugin_137_MainScreen(bool withTouch)
 {
   int8_t taskIndex = getTaskIndexByName("Temperature");
   int8_t BaseVarIndex = taskIndex * VARS_PER_TASK;
@@ -227,23 +236,21 @@ void Plugin_137_MainScreen()
   String tmpStr;
   char tmpBuf[20] = {0};
   
-  tft.fillScreen(ILI9341_BLACK);
+  // tft.fillScreen(ILI9341_BLACK);
   tft.setCursor(0, 0);
   tft.setTextColor(ILI9341_GREEN);  
   tft.setTextSize(3);
   tft.println(" GREEN BOX");
-    tft.setTextSize(2);
-  tft.println();
-  tft.setTextColor(ILI9341_YELLOW);
+  tft.fillRect(5, 40, 230, 10, ILI9341_DARKGREY);
+  tft.setTextSize(2);
+  tft.setTextColor(ILI9341_BLACK);
+  tft.println(timeStr.c_str());
   if (systemTimePresent())
-    {
-      tmpStr = getValue(LabelType::LOCAL_TIME);
-    }
-    else {
-      tmpStr = F("No sys time");
-    } 
-  tft.fillRect(0, 30, 240, 40, ILI9341_BLACK);
-  tft.println(tmpStr.c_str());
+  {
+    timeStr = getValue(LabelType::LOCAL_TIME);
+  } 
+  //tft.setTextColor(ILI9341_YELLOW);
+  //tft.println(timeStr.c_str());
   tft.setTextColor(ILI9341_RED);    
   tft.println();
   sprintf_P(tmpBuf, PSTR("Temperature: %4.2f"), value);
@@ -265,11 +272,18 @@ void Plugin_137_MainScreen()
   tft.println("Heater ON/OFF 17/20");
 */
   tft.println();
- // tft.setTextSize(1);
-  tmpStr = getValue(LabelType::IP_ADDRESS);
+  tft.setTextColor(ILI9341_BLACK);
+  tft.println(ipStr.c_str());
+  ipStr = getValue(LabelType::IP_ADDRESS);
   tft.println(tmpStr.c_str());
-
-  btnLight.draw(tft, btnLight.state);
-  btnPump.draw(tft, btnPump.state);
+  if(withTouch)
+  {
+    btnLight.draw(tft, btnLight.state);
+    btnPump.draw(tft, btnPump.state);
+    btnFan.draw(tft, btnFan.state);
+    btnHeat.draw(tft, btnHeat.state);
+    btnSetup.draw(tft, false);
+    doTouch = false;
+  }
 }
 #endif // USES_P137
