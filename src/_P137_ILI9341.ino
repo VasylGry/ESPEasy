@@ -18,8 +18,8 @@
 #include <SPI.h>
 #include <Adafruit_ILI9341esp.h>
 #include <Adafruit_GFX.h>
+#include <utf8rus.h>
 #include <XPT2046.h>
-//#include <XPT2046_Touchscreen.h>
 #include "ds3231.h"
 
 bool doTouch;
@@ -291,23 +291,28 @@ void Plugin_137_MainScreen(bool withTouch)
 
   tft.setTextColor(ILI9341_ORANGE);
   tft.setCursor(5, 65);
-  tft.println("Temperature: ");
+  //tft.println(utf8rus("Температура: "));
+  tft.println(utf8rus("Temperature: "));
+  tft.setFont(LCD7PT8B);
   tft.setTextColor(ILI9341_BLACK);
-  tft.setCursor(155, 65);
+  tft.setCursor(155, 80);
   sprintf_P(tmpBuf, PSTR("%4.2f"), tempValue);
   tft.println(tmpBuf);
   tempValue = UserVar[BaseVarIndex];
   tft.setTextColor(ILI9341_YELLOW);
-  tft.setCursor(155, 65);
+  tft.setCursor(155, 80);
   sprintf_P(tmpBuf, PSTR("%4.2f"), tempValue);
   tft.println(tmpBuf);
+  tft.setFont(NULL);
   tft.println();
 
   taskIndex = getTaskIndexByName("Pump");
-  sprintf_P(tmpBuf, PSTR("Program: %d"),Settings.TaskDevicePluginConfig[taskIndex][0]);
+  sprintf_P(tmpBuf, PSTR("Программа: %d"),Settings.TaskDevicePluginConfig[taskIndex][0]);
   tft.setTextColor(ILI9341_NAVY);
   tft.setCursor(5, 90);
-  tft.println(tmpBuf);
+  tft.setFont(NOTO5PT8B);
+  tft.println(utf8rus(tmpBuf));
+  tft.setFont(NULL);
   tft.println();
   
   tft.setCursor(5, 115);
