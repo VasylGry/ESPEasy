@@ -22,16 +22,6 @@
 #include <XPT2046.h>
 #include "ds3231.h"
 
-bool doTouch;
-int screenNo = 1;
-uint16_t touch_x, touch_y;
-String timeStr = "1970-01-01 00:00:00";
-String ipStr = "(IP unset)";
-float tempValue;
-Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
-XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
-// XPT2046_Touchscreen touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
-
 /**************************************************\
 Button structure
 \**************************************************/
@@ -75,19 +65,62 @@ struct Button
     state = state ? false : true;
     //Plugin_019_Write(60, 1);
     if(port){
-      portStatusStruct tempStatus;
-      const uint32_t key = createKey(PLUGIN_ID_019,port);
-      tempStatus = globalMapPortStatus[key];
-      tempStatus.mode=PIN_MODE_OUTPUT;
-      tempStatus.state=state ? 0 : 1;
-      tempStatus.command=1;
-      tempStatus.forceEvent=1;
-      savePortStatus(key,tempStatus);
-      Plugin_019_Write(port, (state ? 0 : 1));
+      port_write(port, state ? 0 : 1);
     }
     return true;
   }
+  bool port_write(int8_t portAddr, int8_t value)
+  {
+    portStatusStruct tempStatus;
+      const uint32_t key = createKey(PLUGIN_ID_019,portAddr);
+      tempStatus = globalMapPortStatus[key];
+      tempStatus.mode=PIN_MODE_OUTPUT;
+      tempStatus.state=value;
+      tempStatus.command=1;
+      tempStatus.forceEvent=1;
+      savePortStatus(key,tempStatus);
+      Plugin_019_Write(portAddr, value);
+      return true;
+  }
 };
+
+//*************************************************************
+//    ShowText
+//*************************************************************
+struct ShowText
+{
+  int16_t x,y;
+  int color;
+  String text = "";
+  const GFXfont *font;
+
+  ShowText(int16_t _x, int16_t _y, String _text, int _color, const GFXfont *_font) 
+                  : x(_x),y(_y), color(_color), font(_font) {}
+
+  void show(Adafruit_ILI9341& tft, String newText)
+  {
+    tft.setFont(font);
+    tft.setTextColor(ILI9341_BLACK);
+    tft.setCursor(x, y);
+    tft.println(text);
+    tft.setTextColor(color);
+    tft.setCursor(x, y);
+    text = newText;
+    tft.println(text);
+    tft.setFont(NULL);
+  }
+};
+
+bool doTouch;
+int screenNo = 1;
+uint16_t touch_x, touch_y;
+ShowText timeStr = ShowText(5, 50, "1970-01-01 00:00:00", ILI9341_CYAN, LCD7PT8B);
+ShowText tempStr = ShowText(5, 70, "(IP unset)", ILI9341_CYAN, LCD7PT8B);
+ShowText ipStr = ShowText(5, 100, "(IP unset)", ILI9341_CYAN, LCD7PT8B);
+float tempValue;
+Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
+XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
+// XPT2046_Touchscreen touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
 
 Button btnPump = Button(20, 165, 57, "PUMP");
 Button btnLight = Button(140, 165, 58, "LIGHT");
@@ -278,21 +311,15 @@ void Plugin_137_MainScreen(bool withTouch)
   tft.println();
 
   tft.setTextSize(2);
-  tft.setTextColor(ILI9341_BLACK);
-  tft.setCursor(5, 40);
-  tft.println(timeStr.c_str());
   if (systemTimePresent())
   {
-    timeStr = getValue(LabelType::LOCAL_TIME);
+    timeStr.show(tft, getValue(LabelType::LOCAL_TIME));
   } 
-  tft.setTextColor(ILI9341_CYAN);
-  tft.setCursor(5, 40);
-  tft.println(timeStr.c_str());
 
   tft.setTextColor(ILI9341_ORANGE);
   tft.setCursor(5, 65);
-  //tft.println(utf8rus("Температура: "));
-  tft.println(utf8rus("Temperature: "));
+  tft.println(utf8rus("Температура: "));
+  //tft.println(utf8rus("Temperature: "));
   tft.setFont(LCD7PT8B);
   tft.setTextColor(ILI9341_BLACK);
   tft.setCursor(155, 80);
@@ -308,9 +335,9 @@ void Plugin_137_MainScreen(bool withTouch)
 
   taskIndex = getTaskIndexByName("Pump");
   sprintf_P(tmpBuf, PSTR("Программа: %d"),Settings.TaskDevicePluginConfig[taskIndex][0]);
-  tft.setTextColor(ILI9341_NAVY);
+  tft.setTextColor(ILI9341_WHITE);
   tft.setCursor(5, 90);
-  tft.setFont(NOTO5PT8B);
+  tft.setFont(FS6);
   tft.println(utf8rus(tmpBuf));
   tft.setFont(NULL);
   tft.println();
