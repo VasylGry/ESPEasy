@@ -114,9 +114,11 @@ struct ShowText
 bool doTouch;
 int screenNo = 1;
 uint16_t touch_x, touch_y;
-ShowText timeStr = ShowText(5, 50, "1970-01-01 00:00:00", ILI9341_CYAN, LCD7PT8B);
-ShowText tempStr = ShowText(5, 70, "(IP unset)", ILI9341_CYAN, LCD7PT8B);
-ShowText ipStr = ShowText(5, 100, "(IP unset)", ILI9341_CYAN, LCD7PT8B);
+ShowText timeStr = ShowText(5, 50, "1970-01-01 00:00:00", ILI9341_CYAN, MONO9);
+ShowText tempStr = ShowText(5, 70, "Температура:  23.33", ILI9341_YELLOW, MONOI9);
+ShowText ipStr = ShowText(5, 90, "(IP unset)", ILI9341_MAROON, SANS9);
+ShowText progStr = ShowText(5, 110, "Программа: ", ILI9341_WHITE , SERIF9);
+
 float tempValue;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
 XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
@@ -316,36 +318,15 @@ void Plugin_137_MainScreen(bool withTouch)
     timeStr.show(tft, getValue(LabelType::LOCAL_TIME));
   } 
 
-  tft.setTextColor(ILI9341_ORANGE);
-  tft.setCursor(5, 65);
-  tft.println(utf8rus("Температура: "));
-  //tft.println(utf8rus("Temperature: "));
-  tft.setFont(LCD7PT8B);
-  tft.setTextColor(ILI9341_BLACK);
-  tft.setCursor(155, 80);
-  sprintf_P(tmpBuf, PSTR("%4.2f"), tempValue);
-  tft.println(tmpBuf);
   tempValue = UserVar[BaseVarIndex];
-  tft.setTextColor(ILI9341_YELLOW);
-  tft.setCursor(155, 80);
-  sprintf_P(tmpBuf, PSTR("%4.2f"), tempValue);
-  tft.println(tmpBuf);
-  tft.setFont(NULL);
-  tft.println();
+  sprintf_P(tmpBuf, PSTR("Температура: %4.2f"), tempValue);
+  tempStr.show(tft, utf8rus(tmpBuf));
 
   taskIndex = getTaskIndexByName("Pump");
   sprintf_P(tmpBuf, PSTR("Программа: %d"),Settings.TaskDevicePluginConfig[taskIndex][0]);
-  tft.setTextColor(ILI9341_WHITE);
-  tft.setCursor(5, 90);
-  tft.setFont(FS6);
-  tft.println(utf8rus(tmpBuf));
-  tft.setFont(NULL);
-  tft.println();
+  tempStr.show(tft, utf8rus(tmpBuf));
   
-  tft.setCursor(5, 115);
-  ipStr = getValue(LabelType::IP_ADDRESS);
-  tft.setTextColor(ILI9341_MAROON);
-  tft.println(ipStr.c_str());
+  ipStr.show(tft, getValue(LabelType::IP_ADDRESS));
 
   if(withTouch)
   {
