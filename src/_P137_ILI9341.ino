@@ -47,14 +47,11 @@ struct Button
   {
     state = aState;
     if(state)
-      tft.fillRect(x, y, w, h, ILI9341_GREEN);
-    else
-      tft.fillRect(x, y, w, h, ILI9341_DARKGREY);
+      tft.fillRect(x, y, w, h, ILI9341_GREEN);    //Plugin_019_Write(60, 0);
     tft.setCursor(x + text_x, y + 10);
     tft.setTextColor(ILI9341_WHITE);
     tft.setTextSize(2);
     tft.println(name);
-    //Plugin_019_Write(60, 0);
   }
   bool touch(int16_t tx, int16_t ty)
   {
@@ -63,10 +60,11 @@ struct Button
     if(!((ax >= x)&& (ax < (int16_t)(x + w)) && (ay >= y) && (ay < (int16_t)(y + h))))
       return false;
     state = state ? false : true;
-    //Plugin_019_Write(60, 1);
+  //  port_write(60, 1);
     if(port){
       port_write(port, state ? 0 : 1);
     }
+  //  port_write(60, 0);
     return true;
   }
   bool port_write(int8_t portAddr, int8_t value)
@@ -112,23 +110,23 @@ struct ShowText
 };
 
 bool doTouch;
-int screenNo = 1;
+int screenNo = 2;
 uint16_t touch_x, touch_y;
 ShowText timeStr = ShowText(5, 50, "1970-01-01 00:00:00", ILI9341_CYAN, MONO9);
-ShowText tempStr = ShowText(5, 70, "Температура:  23.33", ILI9341_YELLOW, MONOI9);
-ShowText ipStr = ShowText(5, 90, "(IP unset)", ILI9341_MAROON, SANS9);
-ShowText progStr = ShowText(5, 110, "Программа: ", ILI9341_WHITE , SERIF9);
+ShowText tempStr = ShowText(5, 100, "Температура:  23.33", ILI9341_YELLOW, MONOI9);
+ShowText ipStr = ShowText(5, 150, "(IP unset)", ILI9341_MAROON, SANS9);
+ShowText progStr = ShowText(5, 200, "Программа: ", ILI9341_WHITE , SERIF9);
 
 float tempValue;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
 XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
 // XPT2046_Touchscreen touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
 
-Button btnPump = Button(20, 165, 57, "PUMP");
-Button btnLight = Button(140, 165, 58, "LIGHT");
-Button btnFan = Button(20, 215, 59, "FAN");
-Button btnHeat = Button(140, 215, 61, "HEAT");
-Button btnSetup = Button(20, 270, 0, "SETUP");
+Button btnPump = Button(20, 65, 57, "PUMP");
+Button btnLight = Button(140, 65, 58, "LIGHT");
+Button btnFan = Button(20, 125, 59, "FAN");
+Button btnHeat = Button(140, 125, 61, "HEAT");
+Button btnPage = Button(20, 270, 0, "SETUP");
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -205,8 +203,8 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
     case PLUGIN_INIT:
       {
         doTouch = false;
-        btnSetup.w = 210;
-        btnSetup.text_x = 70;
+        btnPage.w = 210;
+        btnPage.text_x = 70;
         SPI.setFrequency(ESP_SPI_FREQ);
         tft.begin();
         String log = F("9341 => tft.width=");
@@ -256,18 +254,38 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
               goto endTouch;
             }
           }
-          if(btnSetup.touch(touch_x, touch_y)){
+          if(btnPage.touch(touch_x, touch_y)){
             log += F(" Setup ");
-            if(screenNo == 1){
-              btnSetup.name = "Main";
-              screenNo = 2;
-            }
-            else{
-              btnSetup.name = "Setup";
-              screenNo = 1;
-            }
             tft.fillScreen(ILI9341_BLACK);
+            switch(screenNo)
+            {
+              case 1:
+              {
+                btnPage.name = "Control >>";
+                Plugin_137_MainScreen(doTouch);
+                screenNo = 2;
+                break;
+              }
+              case 2:
+              {
+                btnPage.name = "Program >>";
+                Plugin_137_ControlScreen(doTouch);
+                screenNo = 3;
+                break;
+              }
+              case 3:
+              {
+                btnPage.name = "Main >>";
+                Plugin_137_ProgramScreen(doTouch);
+                screenNo = 1;
+                break;
+              }
+              default:
+                break;
+            }
+            goto endTouch;
           }
+        doTouch = false;
         endTouch:
           log += F(" touched at: ");
           log += F(" touch_x=");
@@ -275,14 +293,9 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
           log += F(" touch_y=");
           log += touch_y;
           addLog(LOG_LEVEL_INFO, log);
-        }
+        } 
         if(screenNo == 1)
           Plugin_137_MainScreen(doTouch);
-        else{
-          if(doTouch)
-            Plugin_137_SetupScreen(doTouch);
-        }
-                
         success = true;
         break;
       }
@@ -330,11 +343,7 @@ void Plugin_137_MainScreen(bool withTouch)
 
   if(withTouch)
   {
-    btnLight.draw(tft, btnLight.state);
-    btnPump.draw(tft, btnPump.state);
-    btnFan.draw(tft, btnFan.state);
-    btnHeat.draw(tft, btnHeat.state);
-    btnSetup.draw(tft, false);
+    btnPage.draw(tft, false);
     doTouch = false;
   }
 }
@@ -342,7 +351,7 @@ void Plugin_137_MainScreen(bool withTouch)
 //********************************************************************************
 // Setup Screen
 //********************************************************************************
-void Plugin_137_SetupScreen(bool withTouch)
+void Plugin_137_ProgramScreen(bool withTouch)
 {
 
   String tmpStr;
@@ -404,8 +413,32 @@ void Plugin_137_SetupScreen(bool withTouch)
   addLog(LOG_LEVEL_INFO, log);
   if(withTouch)
   {
-    btnSetup.draw(tft, true);
+    btnPage.draw(tft, false);
     doTouch = false;
   }
 }
+
+//********************************************************************************
+// Control Screen
+//********************************************************************************
+void Plugin_137_ControlScreen(bool withTouch)
+{
+
+  tft.fillScreen(ILI9341_BLACK);
+  tft.setCursor(0, 0);
+  tft.setTextColor(ILI9341_GREEN);  
+  tft.setTextSize(2);
+  tft.println("CONTROL");
+
+  if(withTouch)
+  {
+    btnLight.draw(tft, btnLight.state);
+    btnPump.draw(tft, btnPump.state);
+    btnFan.draw(tft, btnFan.state);
+    btnHeat.draw(tft, btnHeat.state);
+    btnPage.draw(tft, false);
+    doTouch = false;
+  }
+}
+
 #endif // USES_P137
