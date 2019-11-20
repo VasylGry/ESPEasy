@@ -51,7 +51,7 @@ struct Button
       tft.fillRect(x, y, w, h, ILI9341_GREEN);
     else
       tft.fillRect(x, y, w, h, ILI9341_DARKGREY);     
-    tft.setCursor(x + text_x, y + 20);
+    tft.setCursor(x + text_x, y + 25);
     tft.setTextColor(ILI9341_WHITE);
     tft.setTextSize(2);
     tft.println(utf8rus(name));
@@ -99,8 +99,10 @@ struct ShowText
   ShowText(int16_t _x, int16_t _y, String _text, int _color, const GFXfont *_font) 
                   : x(_x),y(_y), color(_color), font(_font) {}
 
-  void show(Adafruit_ILI9341& tft, String newText)
+  bool show(Adafruit_ILI9341& tft, String newText, bool renew)
   {
+    if((newText == text) && !renew)
+      return false;
     tft.setFont(font);
     tft.setTextColor(ILI9341_BLACK);
     tft.setCursor(x, y);
@@ -110,16 +112,17 @@ struct ShowText
     text = newText;
     tft.println(text);
     tft.setFont(NULL);
+    return true;
   }
 };
 
-bool doTouch;
+volatile bool doTouch;
 int screenNo = 1;
 uint16_t touch_x, touch_y;
 ShowText timeStr = ShowText(5, 50, "1970-01-01 00:00:00", ILI9341_CYAN, MONO9);
-ShowText tempStr = ShowText(5, 120, "Темп:  23.33", ILI9341_YELLOW, MONO9);
-ShowText ipStr = ShowText(5, 160, "(IP unset)", ILI9341_MAROON, MONO9);
-ShowText progStr = ShowText(5, 220, "Программа:", ILI9341_WHITE , MONO9);
+ShowText tempStr = ShowText(30, 150, "23.3", ILI9341_YELLOW, MONOBI18);
+ShowText ipStr = ShowText(5, 190, "(IP unset)", ILI9341_PINK, NULL);
+ShowText progStr = ShowText(5, 240, "Программ11", ILI9341_WHITE , MONO9);
 
 float tempValue;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
@@ -129,7 +132,7 @@ Button btnPump = Button(5, 40, 57, "ПОЛИВ");
 Button btnLight = Button(5, 85, 58, "ОСВЕЩЕНИЕ");
 Button btnFan = Button(5, 130, 59, "ВЕНТИЛЯЦИЯ");
 Button btnHeat = Button(5, 175, 61, "ПОДОГРЕВ");
-Button btnPage = Button(5, 270, 0, "ЭКРАН ...");
+Button btnPage = Button(5, 270, 0, "Программа");
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -260,19 +263,19 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
             log += F(" Page: ");
             tft.fillScreen(ILI9341_BLACK);
             screenNo++;
+            screenNo = (screenNo > 3) ? 1 : screenNo;
             log += screenNo;
-            screenNo = (screenNo >= 3) ? 1 : screenNo;
             switch(screenNo)
             {
               case 1:
               {
-                btnPage.name = "Управление>";
-                //Plugin_137_MainScreen(doTouch);
+                btnPage.name = "Програма";
+                Plugin_137_MainScreen(doTouch);
                 break;
               }
               case 2:
               {
-                btnPage.name = "Программа";
+                btnPage.name = "Управление";
                 Plugin_137_ProgramScreen(doTouch);
                 break;
               }
@@ -296,8 +299,19 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
           log += touch_y;
           addLog(LOG_LEVEL_INFO, log);
         } 
-        if(screenNo == 1)
-          Plugin_137_MainScreen(doTouch);
+        switch(screenNo)
+        {
+          case 1:
+            Plugin_137_MainScreen(doTouch); 
+          break;
+          case 2:
+          default:
+          break;
+          case 3:
+            if(doTouch)
+              Plugin_137_ControlScreen(doTouch); 
+          break;
+        }
         success = true;
         break;
       }
@@ -321,27 +335,27 @@ void Plugin_137_MainScreen(bool withTouch)
   char tmpBuf[20] = {0};
   
   // tft.fillScreen(ILI9341_BLACK);
-  tft.setCursor(0, 0);
+  tft.setCursor(40, 0);
   tft.setTextColor(ILI9341_GREEN);  
   tft.setTextSize(3);
-  tft.println(" GREEN BOX");
+  tft.println("GREEN BOX");
   tft.println();
 
   tft.setTextSize(2);
   if (systemTimePresent())
   {
-    timeStr.show(tft, getValue(LabelType::LOCAL_TIME));
+    timeStr.show(tft, getValue(LabelType::LOCAL_TIME), true);
   } 
 
   tempValue = UserVar[BaseVarIndex];
-  sprintf_P(tmpBuf, PSTR("Темп: %3.1f"), tempValue);
-  tempStr.show(tft, utf8rus(tmpBuf));
+  sprintf_P(tmpBuf, PSTR("%3.1f"), tempValue);
+  tempStr.show(tft, utf8rus(tmpBuf), withTouch);
 
   taskIndex = getTaskIndexByName("Pump");
-  sprintf_P(tmpBuf, PSTR("Программа%d"),Settings.TaskDevicePluginConfig[taskIndex][0]);
-  progStr.show(tft, utf8rus(tmpBuf));
+  sprintf_P(tmpBuf, PSTR("Програма%d"),Settings.TaskDevicePluginConfig[taskIndex][0]);
+  progStr.show(tft, utf8rus(tmpBuf), withTouch);
   
-  ipStr.show(tft, getValue(LabelType::IP_ADDRESS));
+  ipStr.show(tft, getValue(LabelType::IP_ADDRESS), withTouch);
 
   if(withTouch)
   {
@@ -361,7 +375,7 @@ void Plugin_137_ProgramScreen(bool withTouch)
   String log = F("9341 => "); 
   
   tft.fillScreen(ILI9341_BLACK);
-  tft.setCursor(0, 0);
+  tft.setCursor(60, 0);
   tft.setTextColor(ILI9341_GREEN);  
   tft.setTextSize(2);
  
@@ -427,7 +441,7 @@ void Plugin_137_ControlScreen(bool withTouch)
 {
 
   tft.fillScreen(ILI9341_BLACK);
-  tft.setCursor(0, 0);
+  tft.setCursor(80, 0);
   tft.setTextColor(ILI9341_GREEN);  
   tft.setTextSize(2);
   tft.println("CONTROL");
