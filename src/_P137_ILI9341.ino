@@ -14,6 +14,12 @@
 #define PLUGIN_137_LCD_CS     2
 #define PLUGIN_137_TS_CS      15
 #define PLUGIN_137_TS_IRQ     16
+#define ALL_00_00             983040l
+#define  SCREEN_MAIN          1
+#define  SCREEN_CONTROL       2
+#define  SCREEN_PROGRAM       3
+#define  BUT_PROG_TOUCH       1
+#define  BUT_SEL_TOUCH        2
 
 #include <SPI.h>
 #include <Adafruit_ILI9341esp.h>
@@ -116,7 +122,10 @@ struct ShowText
   }
 };
 
-volatile bool doTouch;
+
+bool doTouch;
+int progNo;
+int butTouched;
 int screenNo = 1;
 uint16_t touch_x, touch_y;
 ShowText timeStr = ShowText(5, 50, "1970-01-01 00:00:00", ILI9341_CYAN, MONO9);
@@ -132,7 +141,9 @@ Button btnPump = Button(5, 40, 57, "ПОЛИВ");
 Button btnLight = Button(5, 85, 58, "ОСВЕЩЕНИЕ");
 Button btnFan = Button(5, 130, 59, "ВЕНТИЛЯЦИЯ");
 Button btnHeat = Button(5, 175, 61, "ПОДОГРЕВ");
-Button btnPage = Button(5, 270, 0, "Программа");
+Button btnPage = Button(5, 270, 0, "Главный");
+Button btnProg = Button(175, 40, 0, ">>");
+Button btnSel = Button(175, 90, 0, "OK");
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -209,7 +220,9 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
     case PLUGIN_INIT:
       {
         doTouch = false;
-        //btnPage.w = 210;
+        butTouched = 0;
+        btnProg.w = 60;
+        btnSel.w = 60;
         SPI.setFrequency(ESP_SPI_FREQ);
         tft.begin();
         String log = F("9341 => tft.width=");
@@ -240,7 +253,7 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
       {
         if(doTouch){
           String log = F("9341 => "); 
-          if(screenNo == 3){
+          if(screenNo == SCREEN_CONTROL){
             if(btnPump.touch(touch_x, touch_y))
             {
               log += F(" Pump ");
@@ -263,32 +276,44 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
             log += F(" Page: ");
             tft.fillScreen(ILI9341_BLACK);
             screenNo++;
-            screenNo = (screenNo > 3) ? 1 : screenNo;
+            screenNo = (screenNo > SCREEN_PROGRAM) ? SCREEN_MAIN : screenNo;
             log += screenNo;
             switch(screenNo)
             {
-              case 1:
+              case SCREEN_MAIN:
               {
-                btnPage.name = "Програма";
+                btnPage.name = "Главный";
                 Plugin_137_MainScreen(doTouch);
                 break;
               }
-              case 2:
+              case SCREEN_CONTROL:
               {
                 btnPage.name = "Управление";
-                Plugin_137_ProgramScreen(doTouch);
+                Plugin_137_ControlScreen(doTouch);
                 break;
               }
-              case 3:
+              case SCREEN_PROGRAM:
               {
-                btnPage.name = "Главный";
-                Plugin_137_ControlScreen(doTouch);
+                btnPage.name = "Програма";
+                Plugin_137_ProgramScreen(doTouch);
                 break;
               }
               default:
                 break;
             }
             goto endTouch;
+          }
+          if(screenNo == SCREEN_PROGRAM){
+            if(btnProg.touch(touch_x, touch_y)){
+              progNo++;
+              progNo = (progNo > 10) ? 1 : progNo;
+              butTouched = BUT_SEL_TOUCH;
+              goto endTouch;
+            }
+            if(btnSel.touch(touch_x, touch_y)){
+              butTouched = BUT_PROG_TOUCH;
+              goto endTouch;
+            }
           }
         doTouch = false;
         endTouch:
@@ -301,15 +326,23 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
         } 
         switch(screenNo)
         {
-          case 1:
+          case SCREEN_MAIN:
             Plugin_137_MainScreen(doTouch); 
           break;
-          case 2:
-          default:
-          break;
-          case 3:
+          case SCREEN_CONTROL:
             if(doTouch)
               Plugin_137_ControlScreen(doTouch); 
+          break;
+          case SCREEN_PROGRAM:
+            if(doTouch)
+            {
+              if(butTouched == BUT_SEL_TOUCH)
+                Plugin_P137_readProg(doTouch);
+              else
+                Plugin_137_ProgramScreen(doTouch);
+            } 
+          break;
+          default:
           break;
         }
         success = true;
@@ -363,14 +396,36 @@ void Plugin_137_MainScreen(bool withTouch)
     doTouch = false;
   }
 }
-
 //********************************************************************************
-// Setup Screen
+// Control Screen
+//********************************************************************************
+void Plugin_137_ControlScreen(bool withTouch)
+{
+
+  tft.fillScreen(ILI9341_BLACK);
+  tft.setCursor(80, 0);
+  tft.setTextColor(ILI9341_GREEN);  
+  tft.setTextSize(2);
+  tft.println("CONTROL");
+
+  if(withTouch)
+  {
+    btnLight.draw(tft, btnLight.state);
+    btnPump.draw(tft, btnPump.state);
+    btnFan.draw(tft, btnFan.state);
+    btnHeat.draw(tft, btnHeat.state);
+    btnPage.draw(tft, false);
+    doTouch = false;
+  }
+}
+//********************************************************************************
+// Program Screen
 //********************************************************************************
 void Plugin_137_ProgramScreen(bool withTouch)
 {
 
   String tmpStr;
+  int prog_no;
   char tmpBuf[20] = {0};
   String log = F("9341 => "); 
   
@@ -381,20 +436,29 @@ void Plugin_137_ProgramScreen(bool withTouch)
  
   int8_t taskIndex = getTaskIndexByName("pump");
   LoadTaskSettings(taskIndex);
-  sprintf_P(tmpBuf, PSTR("Program: %d"),Settings.TaskDevicePluginConfig[taskIndex][0]);
+  prog_no = Settings.TaskDevicePluginConfig[taskIndex][0];
+
+  if(butTouched && (progNo != prog_no))
+  {
+    //Plugin_043_readProg(prog_no - 1, taskIndex, false);
+    Plugin_043_readProg(progNo - 1, taskIndex, (butTouched == BUT_PROG_TOUCH));
+  }
+  LoadTaskSettings(taskIndex);
+  progNo = prog_no = Settings.TaskDevicePluginConfig[taskIndex][0];
+  sprintf_P(tmpBuf, PSTR("Program: %d"), prog_no);
   tft.println(tmpBuf);
   //tft.println();
   tft.setTextColor(ILI9341_WHITE);
   tft.println("PUMP");
   for (byte x = 0; x < 8; x++)
   {
-    if(ExtraTaskSettings.TaskDevicePluginConfigLong[x] == (long)983040)
+    if(ExtraTaskSettings.TaskDevicePluginConfigLong[x] == (long)ALL_00_00)
       continue;
     log += F("date: ");
     log += ExtraTaskSettings.TaskDevicePluginConfigLong[x];
-    sprintf_P(tmpBuf, PSTR("#%d  %s => %s"), (x + 1), 
+    sprintf_P(tmpBuf, PSTR("#%d %s>%s"), (x + 1), 
         timeLong2String(ExtraTaskSettings.TaskDevicePluginConfigLong[x]).c_str(), 
-        (ExtraTaskSettings.TaskDevicePluginConfig[x] == 2) ? "ON" : "OFF");
+        (ExtraTaskSettings.TaskDevicePluginConfig[x] == 2) ? "1" : "0");  
     tft.println(tmpBuf);
   }
 
@@ -403,12 +467,12 @@ void Plugin_137_ProgramScreen(bool withTouch)
   LoadTaskSettings(taskIndex);
   for (byte x = 0; x < 2; x++)
   {
-    sprintf_P(tmpBuf, PSTR("#%d  %s => %s"), (x + 1), 
+    sprintf_P(tmpBuf, PSTR("#%d %s>%s"), (x + 1), 
         timeLong2String(ExtraTaskSettings.TaskDevicePluginConfigLong[x]).c_str(), 
-        (ExtraTaskSettings.TaskDevicePluginConfig[x] == 2) ? "ON" : "OFF");
+        (ExtraTaskSettings.TaskDevicePluginConfig[x] == 2) ? "1" : "0");
     tft.println(tmpBuf);
   }
-
+  tft.setCursor(0, 175);
   tft.println("FAN");
 //  tft.println("Temperature:")
   taskIndex = getTaskIndexByName("fan");
@@ -430,29 +494,104 @@ void Plugin_137_ProgramScreen(bool withTouch)
   if(withTouch)
   {
     btnPage.draw(tft, false);
+    btnProg.draw(tft, false);
+    btnSel.draw(tft, false);
+    butTouched = 0;
     doTouch = false;
   }
 }
 
 //********************************************************************************
-// Control Screen
+// read progs.json
 //********************************************************************************
-void Plugin_137_ControlScreen(bool withTouch)
+void Plugin_P137_readProg(bool withTouch)
 {
+  // load form data from flash
+
+  String tmpStr;
+  char tmpBuf[20] = {0};
+  int size   = 0;
+  DynamicJsonDocument doc(8192);
+  String log = F("9341 : Read progs: ");
+  fs::File file = tryOpenFile("progs.json", "r");
 
   tft.fillScreen(ILI9341_BLACK);
-  tft.setCursor(80, 0);
+  tft.setCursor(60, 0);
   tft.setTextColor(ILI9341_GREEN);  
   tft.setTextSize(2);
-  tft.println("CONTROL");
+  sprintf_P(tmpBuf, PSTR("Program: %d"), progNo);
+  tft.println(tmpBuf);
+  tft.setTextColor(ILI9341_ORANGE); 
 
+  if (file)
+  {
+    size = file.size();
+    log += F(" size: ");
+    log += size;
+    log += F(" content: ");
+    DeserializationError error = deserializeJson(doc, file);
+    if (error){
+      log += (F("Failed to deserialize JSON"));
+    }else{
+      JsonArray arr = doc.as<JsonArray>();
+      JsonObject obj = arr[progNo - 1];
+      log += " Program = ";
+      log += obj["id"].as<int>();
+      log += " Name=";
+      log += obj["name"].as<String>();
+// pump device
+      tft.println("PUMP");
+      for (byte x = 0; x < PLUGIN_043_MAX_SETTINGS; x++)
+      {
+        String param = obj["pump"][x].as<String>();
+        if(param != "00:00"){
+          sprintf_P(tmpBuf, PSTR("#%d %s>1"), x, param.c_str());
+          tft.println(tmpBuf);
+        }
+      }
+// light device
+      tft.println("LIGHT");
+      for(int x=0;x<2;x++){
+        String param = obj["light"][x].as<String>();
+        if(x)
+          sprintf_P(tmpBuf, PSTR("#%d %s>0"), x, param.c_str());
+        else
+          sprintf_P(tmpBuf, PSTR("#%d %s>1"), x, param.c_str());
+        tft.println(tmpBuf);
+      }
+      delay(0);
+ // fan device      
+      tft.println("FAN");
+      float val1 = obj["fan"][0].as<float>();
+      log += " f0=";
+      log += val1;
+      float val2 = obj["fan"][1].as<float>();
+      log += " f1=";
+      log += val2;
+      sprintf_P(tmpBuf, PSTR("set=%3.1f hist=%3.1f"), val1, val2);
+      tft.println(tmpBuf);
+// heat device
+      tft.println("HEAT"); 
+      val1 = obj["heat"][0].as<float>();
+      log += " f0=";
+      log += val1;
+      val2 = obj["heat"][1].as<float>();
+      log += " f1=";
+      log += val2;
+      sprintf_P(tmpBuf, PSTR("set=%3.1f hist=%3.1f"), val1, val2);
+      tft.println(tmpBuf);
+    }
+    file.close();
+  }else{
+    log += F(" can't open file ! ");
+  }
+  addLog(LOG_LEVEL_INFO, log);
   if(withTouch)
   {
-    btnLight.draw(tft, btnLight.state);
-    btnPump.draw(tft, btnPump.state);
-    btnFan.draw(tft, btnFan.state);
-    btnHeat.draw(tft, btnHeat.state);
     btnPage.draw(tft, false);
+    btnProg.draw(tft, false);
+    btnSel.draw(tft, false);
+    butTouched = 0;
     doTouch = false;
   }
 }

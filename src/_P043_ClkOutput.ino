@@ -154,7 +154,7 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
                 command = F("\nFail\nBad program number!");
                 SendStatus(event->Source, command);
               }else
-                readProgram((int)floatValue - 1, event->TaskIndex);
+                Plugin_043_readProg((int)floatValue - 1, event->TaskIndex, true);
               success = true;
             } else { // float conversion failed!
               if (loglevelActiveFor(LOG_LEVEL_ERROR))
@@ -178,9 +178,9 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
   } // case
   return success;
 } // function
-
+//================================================================================================
 // read progs.json
-bool readProgram(int prog_no, byte taskIndex)
+bool Plugin_043_readProg(int prog_no, byte taskIndex, bool doSave)
 {
   // load form data from flash
 
@@ -196,13 +196,6 @@ bool readProgram(int prog_no, byte taskIndex)
     log += F(" size: ");
     log += size;
     log += F(" content: ");
-/*
-    while (file.available())
-    {
-      String c((char)file.read());
-      log += c;
-    }
-*/
     DeserializationError error = deserializeJson(doc, file);
     if (error){
       log += (F("Failed to deserialize JSON"));
@@ -225,7 +218,8 @@ bool readProgram(int prog_no, byte taskIndex)
         else
           ExtraTaskSettings.TaskDevicePluginConfig[x] = 2;
       }
-      SaveTaskSettings(taskIndex);
+      if(doSave)
+        SaveTaskSettings(taskIndex);
 // light device
       int8_t taskNext = getTaskIndexByName("light");
       log += " lID=";
@@ -240,7 +234,8 @@ bool readProgram(int prog_no, byte taskIndex)
         else
           ExtraTaskSettings.TaskDevicePluginConfig[x] = 1;
       }
-      SaveTaskSettings(taskNext);
+      if(doSave)
+        SaveTaskSettings(taskNext);
       delay(0);
  // fan device      
       taskNext = getTaskIndexByName("fan");
@@ -257,7 +252,8 @@ bool readProgram(int prog_no, byte taskIndex)
       log += Settings.TaskDevicePluginConfigFloat[taskNext][0];
       val = obj["fan"][1].as<float>();
       Settings.TaskDevicePluginConfigFloat[taskNext][1] =  obj["fan"][1].as<float>();
-      SaveTaskSettings(taskNext);
+      if(doSave)
+        SaveTaskSettings(taskNext);
 // heat device
       taskNext = getTaskIndexByName("heat");
       LoadTaskSettings(taskNext); 
@@ -273,9 +269,10 @@ bool readProgram(int prog_no, byte taskIndex)
       log += Settings.TaskDevicePluginConfigFloat[taskNext][0];
       val = obj["heat"][1].as<float>();
       Settings.TaskDevicePluginConfigFloat[taskNext][1] =  obj["heat"][1].as<float>();
-      SaveTaskSettings(taskNext);
-      log += " heat_param";
-      SaveSettings();
+      if(doSave){
+        SaveTaskSettings(taskNext);
+        SaveSettings();
+      }
     }
     file.close();
     ret = true;
