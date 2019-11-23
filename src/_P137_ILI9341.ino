@@ -20,6 +20,7 @@
 #define  SCREEN_PROGRAM       3
 #define  BUT_PROG_TOUCH       1
 #define  BUT_SEL_TOUCH        2
+#define  BEEP_COUNT           1  
 
 #include <SPI.h>
 #include <Adafruit_ILI9341esp.h>
@@ -31,8 +32,10 @@
 /**************************************************\
 Button structure
 \**************************************************/
-struct Button
+class Button
 {
+public:
+  static bool beepOn;
   int16_t w;
   int16_t h;
   int16_t x,y;
@@ -70,11 +73,13 @@ struct Button
     if(!((ax >= x)&& (ax < (int16_t)(x + w)) && (ay >= y) && (ay < (int16_t)(y + h))))
       return false;
     state = state ? false : true;
-  //  port_write(60, 1);
+    port_write(60, 1);
+    beepOn = true;
     if(port){
       port_write(port, state ? 0 : 1);
     }
-  //  port_write(60, 0);
+    delay(30);
+    port_write(60, 0);
     return true;
   }
   bool port_write(int8_t portAddr, int8_t value)
@@ -122,7 +127,6 @@ struct ShowText
   }
 };
 
-
 bool doTouch;
 int progNo;
 int butTouched;
@@ -137,6 +141,7 @@ float tempValue;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(PLUGIN_137_LCD_CS, PLUGIN_137_LCD_DC);
 XPT2046 touch(PLUGIN_137_TS_CS, PLUGIN_137_TS_IRQ);
 
+bool Button::beepOn = false;
 Button btnPump = Button(5, 40, 57, "ПОЛИВ");
 Button btnLight = Button(5, 85, 58, "ОСВЕЩЕНИЕ");
 Button btnFan = Button(5, 130, 59, "ВЕНТИЛЯЦИЯ");
