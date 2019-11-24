@@ -18,6 +18,7 @@
 #define  SCREEN_MAIN          1
 #define  SCREEN_CONTROL       2
 #define  SCREEN_PROGRAM       3
+#define  SCREEN_STAT          4
 #define  BUT_PROG_TOUCH       1
 #define  BUT_SEL_TOUCH        2
 #define  BEEP_COUNT           1  
@@ -44,6 +45,7 @@ public:
   int16_t color;
   bool state;
   String name;
+  Button() {};
   Button(int16_t aX, int16_t aY, int8_t aPort, String aName) : x(aX), y(aY), port(aPort), name(aName)
   {
     w = 230;
@@ -149,6 +151,7 @@ Button btnHeat = Button(5, 175, 61, "ПОДОГРЕВ");
 Button btnPage = Button(5, 270, 0, "Главный");
 Button btnProg = Button(175, 40, 0, ">>");
 Button btnSel = Button(175, 90, 0, "OK");
+Button btnX[8];
 
 boolean Plugin_137(byte function, struct EventStruct *event, String& string)
 {
@@ -228,6 +231,15 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
         butTouched = 0;
         btnProg.w = 60;
         btnSel.w = 60;
+        for(int x=0; x < 8; x++)
+        {
+          btnX[x].h = 30;
+          btnX[x].w = 80;
+          btnX[x].x = 0;
+          btnX[x].y = 10 + 32 * x;
+          btnX[x].text_x = 10;
+          btnX[x].name = x + 1;
+        }
         SPI.setFrequency(ESP_SPI_FREQ);
         tft.begin();
         String log = F("9341 => tft.width=");
@@ -281,7 +293,7 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
             log += F(" Page: ");
             tft.fillScreen(ILI9341_BLACK);
             screenNo++;
-            screenNo = (screenNo > SCREEN_PROGRAM) ? SCREEN_MAIN : screenNo;
+            screenNo = (screenNo > SCREEN_STAT) ? SCREEN_MAIN : screenNo;
             log += screenNo;
             switch(screenNo)
             {
@@ -303,6 +315,12 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
                 Plugin_137_ProgramScreen(doTouch);
                 break;
               }
+              case SCREEN_STAT:
+              {
+                btnPage.name = "Процес";
+                Plugin_137_ProgStatScreen(doTouch);
+                break;
+              }
               default:
                 break;
             }
@@ -320,12 +338,23 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
               goto endTouch;
             }
           }
+          if(screenNo == SCREEN_STAT){
+            butTouched = 0;
+            for(int x = 0; x < 8; x++){
+              if(btnX[x].touch(touch_x, touch_y)){
+                butTouched = x + 1;
+                goto endTouch;
+              }
+            }
+          }
         doTouch = false;
         endTouch:
+          log += F(" but: ");
+          log += butTouched;
           log += F(" touched at: ");
-          log += F(" touch_x=");
+          log += F(" x=");
           log += touch_x;
-          log += F(" touch_y=");
+          log += F(" y=");
           log += touch_y;
           addLog(LOG_LEVEL_INFO, log);
         } 
@@ -345,6 +374,13 @@ boolean Plugin_137(byte function, struct EventStruct *event, String& string)
                 Plugin_P137_readProg(doTouch);
               else
                 Plugin_137_ProgramScreen(doTouch);
+            } 
+          break;
+          case SCREEN_STAT:
+            if(doTouch)
+            {
+              if(butTouched)
+                Plugin_137_ProgStatScreen(doTouch);
             } 
           break;
           default:
@@ -505,7 +541,53 @@ void Plugin_137_ProgramScreen(bool withTouch)
     doTouch = false;
   }
 }
-
+//********************************************************************************
+// Program Screen
+//********************************************************************************
+void Plugin_137_ProgStatScreen(bool withTouch)
+{
+  //char tmpBuf[20] = {0};
+  String log = F("9341 => "); 
+  
+  tft.fillScreen(ILI9341_BLACK);
+   tft.setFont(NULL); 
+  tft.setTextSize(2);
+  tft.setCursor(80, 0);
+  tft.setTextColor(ILI9341_GREEN);  
+  tft.println("PROCESS");
+  
+  int8_t taskIndex = getTaskIndexByName("ProgStat");
+  LoadTaskSettings(taskIndex);
+    for (byte x = 0; x < 8; x++)
+    {
+      byte choice = ExtraTaskSettings.TaskDevicePluginConfig[x];
+      if(x == butTouched - 1){
+        ExtraTaskSettings.TaskDevicePluginConfig[x] = choice ? 0 : 1;
+        ExtraTaskSettings.TaskDevicePluginConfigLong[x] = choice ? getRtcTime() : 0;
+      }
+      String tmpStr;
+      bool changed = (choice) ? true : false;
+      btnX[x].draw(tft, changed);
+      tft.setCursor(100, 31 * (x+1));
+      tft.setTextColor(ILI9341_OLIVE);
+      if(choice){
+        Plugin_138_Calc(tmpStr, ExtraTaskSettings.TaskDevicePluginConfigLong[x], getRtcTime(), true);
+        tft.println(tmpStr);
+      }
+      else{        
+        tft.println(String(F("----[--]")));
+      }
+      //tft.println((String(F("p138_state")) + (x), 2, options, NULL, NULL, choice, false);
+    }
+  if(butTouched > 0)
+    SaveTaskSettings(taskIndex);
+  butTouched = 0;
+  if(withTouch)
+  {
+    btnPage.draw(tft, false);
+    doTouch = false;
+  }
+}
 //********************************************************************************
 // read progs.json
 //********************************************************************************

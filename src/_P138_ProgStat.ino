@@ -62,17 +62,18 @@ boolean Plugin_138(byte function, struct EventStruct *event, String& string)
 
         for (byte x = 0; x < PLUGIN_138_MAX_SETTINGS; x++)
         {
-        	addFormNote(String(F("Start: ")) + ExtraTaskSettings.TaskDevicePluginConfigLong[x], String(F("p138_clock")) + (x));
-            addHtml(" ");
-            byte choice = ExtraTaskSettings.TaskDevicePluginConfig[x];
-            if(choice){
-                unsigned long delta = Plugin_138_Calc(ExtraTaskSettings.TaskDevicePluginConfigLong[x]);
-                addFormNote(String(F("Delta: ")) + delta);
-            }
-            else
-                addFormNote(String(F("Duration: ")) + "--");
-            addHtml(" ");
-            addSelector(String(F("p138_state")) + (x), 2, options, NULL, NULL, choice, false);
+          byte choice = ExtraTaskSettings.TaskDevicePluginConfig[x];
+          String tmpStr;
+        	//addFormNote(String(F("Start: ")) + ExtraTaskSettings.TaskDevicePluginConfigLong[x], String(F("p138_clock")) + (x));
+          //addHtml(" ");
+          if(choice){
+            Plugin_138_Calc(tmpStr, ExtraTaskSettings.TaskDevicePluginConfigLong[x], getRtcTime(), false);
+            addFormNote(String(F("Start: ")) + tmpStr);
+          }
+          else
+            addFormNote(String(F("Start: -- Duration: --")));
+          addHtml(" ");
+          addSelector(String(F("p138_state")) + (x), 2, options, NULL, NULL, choice, false);
         }
         success = true;
         break;
@@ -178,15 +179,36 @@ boolean Plugin_138(byte function, struct EventStruct *event, String& string)
 } // function
 //================================================================================================
 // calc scheduling
-unsigned long Plugin_138_Calc(const unsigned long startTime)
+void Plugin_138_Calc(String& str, const unsigned long startTime, const unsigned long endTime, bool shortMode)
 {
-
-  const unsigned long delta = timePassedSince(startTime);
-
-  String log = F("Stat: calc: ");
+  struct tm t;
+  char buf[20];
+  uint8_t mday;
+  uint8_t hour;
+  uint8_t min;
+  unsigned long sec;
+  unsigned long delta =  timeDiff(startTime, endTime);
+  mday = delta / SECS_PER_DAY;
+  sec = delta - mday * SECS_PER_DAY;
+  hour = sec / SECS_PER_HOUR;
+  sec = sec - hour * SECS_PER_HOUR;
+  min = sec / SECS_PER_MIN;
+  breakTime(startTime, t);
+  if(!shortMode){
+	  sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d", t.tm_year + 1970, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec);
+    str = String(buf) + "[" + mday + "-" + hour + ":" + min + "]";
+  }
+  else{
+    sprintf(buf, "%02d %02d:%02d", mday, hour, min);
+    str = String(buf);
+  }
+  String log = F("Stat:");
+  log += startTime;
   log += F(" delta: ");
-  log += delta;   
+  log += delta;
+  log += F(" => ");
+  log += str;  
   addLog(LOG_LEVEL_INFO, log);
-  return delta;
+  return;
 }
 #endif // USES_P138
