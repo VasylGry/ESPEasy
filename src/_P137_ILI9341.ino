@@ -562,7 +562,8 @@ void Plugin_137_ProgStatScreen(bool withTouch)
     {
       byte choice = ExtraTaskSettings.TaskDevicePluginConfig[x];
       if(x == butTouched - 1){
-        ExtraTaskSettings.TaskDevicePluginConfig[x] = choice ? 0 : 1;
+        choice = !choice;
+        ExtraTaskSettings.TaskDevicePluginConfig[x] = choice ? 1 : 0;
         ExtraTaskSettings.TaskDevicePluginConfigLong[x] = choice ? getRtcTime() : 0;
       }
       String tmpStr;
